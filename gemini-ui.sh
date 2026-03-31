@@ -163,9 +163,18 @@ fi
 #  2. Download & setup app
 # ────────────────────────────────
 
-info "Downloading Gemini UI..."
-curl -fsSL "$ZIP_URL" -o "$ZIP_PATH"
-log "Downloaded"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOCAL_ZIP="$SCRIPT_DIR/gemini-ui-app.zip"
+
+if [ -f "$LOCAL_ZIP" ]; then
+  info "Using local gemini-ui-app.zip..."
+  cp "$LOCAL_ZIP" "$ZIP_PATH"
+  log "Copied from local"
+else
+  info "Downloading Gemini UI..."
+  curl -fsSL "$ZIP_URL" -o "$ZIP_PATH"
+  log "Downloaded"
+fi
 
 mkdir -p "$INSTALL_DIR"
 unzip -qo "$ZIP_PATH" -d "$INSTALL_DIR"
