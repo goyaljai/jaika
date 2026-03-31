@@ -67,20 +67,17 @@ fi
 
 # ── Node.js ──
 if ! command -v node &> /dev/null; then
-  info "Installing Node.js..."
   if [ "$OS" = "Darwin" ]; then
     brew install node
   else
-    # Use nvm — installs to ~/.nvm, no sudo
     export NVM_DIR="$HOME/.nvm"
     curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash > /dev/null 2>&1
     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
     nvm install --lts > /dev/null 2>&1 &
-    spin $! "Installing Node.js via nvm..."
-    log "Node.js installed (via nvm)"
+    spin $! "Wiring up the runtime..."
   fi
 fi
-log "Node.js $(node -v)"
+log "Runtime crystallized"
 
 # ── Python 3 ──
 if ! command -v python3 &> /dev/null; then
@@ -89,50 +86,42 @@ if ! command -v python3 &> /dev/null; then
   else
     warn "Python 3 is required but not installed."
     echo -e "  ${DIM}   Install it: sudo apt install python3 python3-venv${NC}"
-    echo -e "  ${DIM}   Then re-run this script.${NC}"
     exit 1
   fi
 fi
-log "Python $(python3 --version | cut -d' ' -f2)"
+log "Interpreter summoned"
 
 # ── Gemini CLI ──
 if ! command -v gemini &> /dev/null; then
   npm install -g @google/gemini-cli > /dev/null 2>&1 &
-  spin $! "Installing Gemini CLI..."
-  log "Gemini CLI installed"
+  spin $! "Conjuring the brain..."
+  log "Brain materialized"
 else
-  log "Gemini CLI $(gemini --version 2>/dev/null | tail -1)"
+  log "Brain locked in"
 fi
 
 # ── Pandoc ──
 if ! command -v pandoc &> /dev/null; then
-  info "Installing Pandoc..."
   if [ "$OS" = "Darwin" ]; then
     brew install pandoc > /dev/null 2>&1 &
-    spin $! "Installing Pandoc..."
+    spin $! "Transmuting the renderer..."
   else
-    # Download static binary — no sudo
     PANDOC_VER="3.6.4"
-    if [ "$ARCH" = "x86_64" ]; then
-      PANDOC_ARCH="amd64"
-    else
-      PANDOC_ARCH="arm64"
-    fi
+    [ "$ARCH" = "x86_64" ] && PANDOC_ARCH="amd64" || PANDOC_ARCH="arm64"
     PANDOC_TAR="pandoc-${PANDOC_VER}-linux-${PANDOC_ARCH}.tar.gz"
     curl -fsSL "https://github.com/jgm/pandoc/releases/download/${PANDOC_VER}/${PANDOC_TAR}" -o "/tmp/${PANDOC_TAR}" 2>/dev/null &
-    spin $! "Downloading Pandoc..."
+    spin $! "Transmuting the renderer..."
     tar -xzf "/tmp/${PANDOC_TAR}" -C /tmp 2>/dev/null
     cp "/tmp/pandoc-${PANDOC_VER}/bin/pandoc" "$LOCAL_BIN/"
     rm -rf "/tmp/${PANDOC_TAR}" "/tmp/pandoc-${PANDOC_VER}"
   fi
-  log "Pandoc installed"
+  log "Renderer transmuted"
 else
-  log "Pandoc $(pandoc --version | head -1 | cut -d' ' -f2)"
+  log "Renderer attuned"
 fi
 
 # ── LaTeX engine (TinyTeX — no sudo) ──
 if ! command -v pdflatex &> /dev/null; then
-  # Check if TinyTeX is installed but not on PATH
   TINYTEX_BIN=""
   if [ "$OS" = "Darwin" ]; then
     TINYTEX_BIN="$HOME/Library/TinyTeX/bin/universal-darwin"
@@ -143,20 +132,20 @@ if ! command -v pdflatex &> /dev/null; then
 
   if [ -n "$TINYTEX_BIN" ] && [ -f "$TINYTEX_BIN/pdflatex" ]; then
     export PATH="$TINYTEX_BIN:$PATH"
-    log "TinyTeX found"
+    log "Typesetter resonating"
   else
     curl -fsSL https://yihui.org/tinytex/install-bin-unix.sh 2>/dev/null | sh > /dev/null 2>&1 &
-    spin $! "Installing TinyTeX (no sudo needed)..."
+    spin $! "Nebulizing the typesetter..."
     if [ "$OS" = "Darwin" ]; then
       export PATH="$HOME/Library/TinyTeX/bin/universal-darwin:$PATH"
     else
       [ -d "$HOME/.TinyTeX/bin/x86_64-linux" ] && export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$PATH"
       [ -d "$HOME/.TinyTeX/bin/aarch64-linux" ] && export PATH="$HOME/.TinyTeX/bin/aarch64-linux:$PATH"
     fi
-    log "TinyTeX installed"
+    log "Typesetter nebulized"
   fi
 else
-  log "LaTeX engine found"
+  log "LaTeX engine humming"
 fi
 
 # ────────────────────────────────
@@ -167,30 +156,29 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_ZIP="$SCRIPT_DIR/gemini-ui-app.zip"
 
 if [ -f "$LOCAL_ZIP" ]; then
-  info "Using local gemini-ui-app.zip..."
   cp "$LOCAL_ZIP" "$ZIP_PATH"
-  log "Copied from local"
+  log "Siphoned local artifact"
 else
-  info "Downloading Gemini UI..."
-  curl -fsSL "$ZIP_URL" -o "$ZIP_PATH"
-  log "Downloaded"
+  curl -fsSL "$ZIP_URL" -o "$ZIP_PATH" &
+  spin $! "Beaming down the payload..."
+  log "Payload acquired"
 fi
 
 mkdir -p "$INSTALL_DIR"
 unzip -qo "$ZIP_PATH" -d "$INSTALL_DIR"
 rm -f "$ZIP_PATH"
-log "App extracted"
+log "Blueprint unpacked"
 
 # ── Python venv ──
 if [ ! -d "$INSTALL_DIR/venv" ]; then
   python3 -m venv "$INSTALL_DIR/venv" 2>/dev/null &
-  spin $! "Creating virtual environment..."
-  log "Virtual environment created"
+  spin $! "Distilling the environment..."
+  log "Environment distilled"
 fi
 
 "$INSTALL_DIR/venv/bin/pip" install -q flask > /dev/null 2>&1 &
-spin $! "Installing Flask..."
-log "Flask installed"
+spin $! "Saut\u00e9ing the ingredients..."
+log "Saut\u00e9ed to perfection"
 
 # ── Data directories ──
 mkdir -p "$INSTALL_DIR/data"/{uploads,skills,sessions,outputs}
@@ -202,14 +190,14 @@ mkdir -p "$HOME/.gemini/skills"
 
 if [ ! -f "$HOME/.gemini/oauth_creds.json" ] && [ ! -f "$HOME/.config/gemini/oauth_creds.json" ]; then
   echo ""
-  info "No Gemini credentials found."
-  echo -e "  ${DIM}   A browser will open for Google sign-in.${NC}"
-  echo -e "  ${DIM}   Sign in, then come back here.${NC}"
+  info "First time? Let's authenticate."
+  echo -e "  ${DIM}   A browser will open — sign in with Google.${NC}"
+  echo -e "  ${DIM}   Then come back here.${NC}"
   echo ""
   gemini --prompt "hello" > /dev/null 2>&1 || true
-  log "Authentication complete"
+  log "Identity crystallized"
 else
-  log "Google credentials found"
+  log "Identity cascaded"
 fi
 
 # ────────────────────────────────
@@ -241,7 +229,7 @@ if ! curl -s http://127.0.0.1:$PORT > /dev/null 2>&1; then
   exit 1
 fi
 
-log "Server running (PID: $SERVER_PID)"
+log "Engine ignited"
 
 # Re-detect IP now that server is confirmed up
 LOCAL_IP=$(python3 -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "127.0.0.1")
@@ -286,10 +274,10 @@ IP_WATCHER_PID=$!
 
 cleanup() {
   echo ""
-  info "Shutting down..."
+  info "Winding down..."
   kill $SERVER_PID 2>/dev/null || true
   kill $IP_WATCHER_PID 2>/dev/null || true
-  log "Server stopped. Goodbye!"
+  log "Vanished. Until next time."
   exit 0
 }
 
