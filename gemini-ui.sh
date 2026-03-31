@@ -3,12 +3,14 @@ set -e
 
 # ─────────────────────────────────────────────
 #  Gemini UI — One-click installer & launcher
+#  Zero sudo. Everything installs to ~/
 # ─────────────────────────────────────────────
 
 INSTALL_DIR="$HOME/.gemini-ui"
 ZIP_URL="https://github.com/goyaljai/jaika/raw/refs/heads/main/gemini-ui-app.zip"
 ZIP_PATH="/tmp/gemini-ui-app.zip"
 PORT=5001
+LOCAL_BIN="$HOME/.local/bin"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -48,21 +50,11 @@ banner
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
-
-# ── Ask for sudo upfront on Linux ──
-if [ "$OS" = "Linux" ]; then
-  echo -e "  ${BLUE}→${NC}  Some packages need admin privileges."
-  echo -e "  ${DIM}   You'll be asked for your password once.${NC}"
-  echo ""
-  sudo -v || { warn "Could not get sudo. Some installs may fail."; }
-  # Keep sudo ticket alive
-  ( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) &
-  SUDO_KEEPALIVE_PID=$!
-  echo ""
-fi
+mkdir -p "$LOCAL_BIN"
+export PATH="$LOCAL_BIN:$PATH"
 
 # ────────────────────────────────
-#  1. Dependencies
+#  1. Dependencies (all userspace)
 # ────────────────────────────────
 
 # ── Homebrew (macOS) ──
@@ -78,28 +70,27 @@ if ! command -v node &> /dev/null; then
   info "Installing Node.js..."
   if [ "$OS" = "Darwin" ]; then
     brew install node
-  elif command -v apt-get &> /dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - > /dev/null 2>&1
-    sudo apt-get install -y -qq nodejs > /dev/null 2>&1
-  elif command -v dnf &> /dev/null; then
-    curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash - > /dev/null 2>&1
-    sudo dnf install -y -q nodejs > /dev/null 2>&1
   else
-    warn "Install Node.js 18+ manually: https://nodejs.org/"
-    exit 1
+    # Use nvm — installs to ~/.nvm, no sudo
+    export NVM_DIR="$HOME/.nvm"
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash > /dev/null 2>&1
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+    nvm install --lts > /dev/null 2>&1 &
+    spin $! "Installing Node.js via nvm..."
+    log "Node.js installed (via nvm)"
   fi
 fi
 log "Node.js $(node -v)"
 
 # ── Python 3 ──
 if ! command -v python3 &> /dev/null; then
-  info "Installing Python 3..."
   if [ "$OS" = "Darwin" ]; then
     brew install python3
-  elif command -v apt-get &> /dev/null; then
-    sudo apt-get update -qq && sudo apt-get install -y -qq python3 python3-venv python3-pip > /dev/null 2>&1
-  elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q python3 python3-pip > /dev/null 2>&1
+  else
+    warn "Python 3 is required but not installed."
+    echo -e "  ${DIM}   Install it: sudo apt install python3 python3-venv${NC}"
+    echo -e "  ${DIM}   Then re-run this script.${NC}"
+    exit 1
   fi
 fi
 log "Python $(python3 --version | cut -d' ' -f2)"
@@ -115,38 +106,54 @@ fi
 
 # ── Pandoc ──
 if ! command -v pandoc &> /dev/null; then
+  info "Installing Pandoc..."
   if [ "$OS" = "Darwin" ]; then
     brew install pandoc > /dev/null 2>&1 &
     spin $! "Installing Pandoc..."
-  elif command -v apt-get &> /dev/null; then
-    sudo apt-get install -y -qq pandoc > /dev/null 2>&1
-  elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q pandoc > /dev/null 2>&1
+  else
+    # Download static binary — no sudo
+    PANDOC_VER="3.6.4"
+    if [ "$ARCH" = "x86_64" ]; then
+      PANDOC_ARCH="amd64"
+    else
+      PANDOC_ARCH="arm64"
+    fi
+    PANDOC_TAR="pandoc-${PANDOC_VER}-linux-${PANDOC_ARCH}.tar.gz"
+    curl -fsSL "https://github.com/jgm/pandoc/releases/download/${PANDOC_VER}/${PANDOC_TAR}" -o "/tmp/${PANDOC_TAR}" 2>/dev/null &
+    spin $! "Downloading Pandoc..."
+    tar -xzf "/tmp/${PANDOC_TAR}" -C /tmp 2>/dev/null
+    cp "/tmp/pandoc-${PANDOC_VER}/bin/pandoc" "$LOCAL_BIN/"
+    rm -rf "/tmp/${PANDOC_TAR}" "/tmp/pandoc-${PANDOC_VER}"
   fi
   log "Pandoc installed"
 else
   log "Pandoc $(pandoc --version | head -1 | cut -d' ' -f2)"
 fi
 
-# ── LaTeX engine ──
-if ! command -v pdflatex &> /dev/null && ! command -v xelatex &> /dev/null; then
-  info "Installing LaTeX engine..."
+# ── LaTeX engine (TinyTeX — no sudo) ──
+if ! command -v pdflatex &> /dev/null; then
+  # Check if TinyTeX is installed but not on PATH
+  TINYTEX_BIN=""
   if [ "$OS" = "Darwin" ]; then
-    brew install --cask basictex 2>/dev/null && {
-      eval "$(/usr/libexec/path_helper)" 2>/dev/null || true
-      export PATH="/Library/TeX/texbin:$PATH"
-      log "LaTeX engine installed"
-    } || {
-      warn "LaTeX needs password. Run later: brew install --cask basictex"
-    }
-  elif command -v apt-get &> /dev/null; then
-    sudo apt-get install -y -qq texlive-latex-base texlive-fonts-recommended texlive-latex-extra > /dev/null 2>&1 &
-    spin $! "Installing LaTeX (this may take a few minutes)..."
-    log "LaTeX engine installed"
-  elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q texlive-scheme-basic > /dev/null 2>&1 &
-    spin $! "Installing LaTeX..."
-    log "LaTeX engine installed"
+    TINYTEX_BIN="$HOME/Library/TinyTeX/bin/universal-darwin"
+  else
+    [ -d "$HOME/.TinyTeX/bin/x86_64-linux" ] && TINYTEX_BIN="$HOME/.TinyTeX/bin/x86_64-linux"
+    [ -d "$HOME/.TinyTeX/bin/aarch64-linux" ] && TINYTEX_BIN="$HOME/.TinyTeX/bin/aarch64-linux"
+  fi
+
+  if [ -n "$TINYTEX_BIN" ] && [ -f "$TINYTEX_BIN/pdflatex" ]; then
+    export PATH="$TINYTEX_BIN:$PATH"
+    log "TinyTeX found"
+  else
+    curl -fsSL https://yihui.org/tinytex/install-bin-unix.sh 2>/dev/null | sh > /dev/null 2>&1 &
+    spin $! "Installing TinyTeX (no sudo needed)..."
+    if [ "$OS" = "Darwin" ]; then
+      export PATH="$HOME/Library/TinyTeX/bin/universal-darwin:$PATH"
+    else
+      [ -d "$HOME/.TinyTeX/bin/x86_64-linux" ] && export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$PATH"
+      [ -d "$HOME/.TinyTeX/bin/aarch64-linux" ] && export PATH="$HOME/.TinyTeX/bin/aarch64-linux:$PATH"
+    fi
+    log "TinyTeX installed"
   fi
 else
   log "LaTeX engine found"
@@ -163,7 +170,7 @@ log "Downloaded"
 mkdir -p "$INSTALL_DIR"
 unzip -qo "$ZIP_PATH" -d "$INSTALL_DIR"
 rm -f "$ZIP_PATH"
-log "App extracted to $INSTALL_DIR"
+log "App extracted"
 
 # ── Python venv ──
 if [ ! -d "$INSTALL_DIR/venv" ]; then
@@ -200,7 +207,6 @@ fi
 #  4. Launch server
 # ────────────────────────────────
 
-# Kill any existing instance
 lsof -ti:$PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
 fuser -k $PORT/tcp 2>/dev/null || true
 
@@ -208,7 +214,6 @@ cd "$INSTALL_DIR"
 "$INSTALL_DIR/venv/bin/python" app.py > "$INSTALL_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 
-# Wait for server
 for i in $(seq 1 15); do
   curl -s http://localhost:$PORT > /dev/null 2>&1 && break
   sleep 1
@@ -231,19 +236,16 @@ echo -e "${GREEN}${BOLD}  │                                     │${NC}"
 echo -e "${GREEN}${BOLD}  └─────────────────────────────────────┘${NC}"
 echo ""
 
-# Open browser
 if command -v open &> /dev/null; then
   open "http://localhost:$PORT"
 elif command -v xdg-open &> /dev/null; then
   xdg-open "http://localhost:$PORT"
 fi
 
-# ── Graceful shutdown ──
 cleanup() {
   echo ""
   info "Shutting down..."
   kill $SERVER_PID 2>/dev/null || true
-  [ -n "${SUDO_KEEPALIVE_PID:-}" ] && kill $SUDO_KEEPALIVE_PID 2>/dev/null || true
   log "Server stopped. Goodbye!"
   exit 0
 }

@@ -1,82 +1,118 @@
-# Gemini UI
+# Jaika — Free Gemini AI in Your Browser
 
-A self-hosted web interface for Google's Gemini CLI. Chat with Gemini in your browser with session management, file uploads, PDF generation, skills system, and a full REST API.
+One command. No API keys. No billing. Just sign in with Gmail and go.
 
-**Free** — runs on Google's free Gemini tier (1,000 requests/day).
+A self-hosted browser interface for Google's Gemini CLI — turning a terminal-only AI agent into a full-featured web app with chat, file uploads, PDF generation, skills, and a REST API. Completely free (1,000 requests/day).
 
-**Local** — everything runs on your machine, no data leaves your laptop.
+## What is this?
+
+Google released [Gemini CLI](https://github.com/google-gemini/gemini-cli) — a free, powerful AI agent that runs in your terminal. It gives you 60 requests/minute and 1,000 requests/day on a free Google account. But it's terminal-only.
+
+**Gemini UI** wraps the CLI in a Flask web server and gives it a browser-based chat interface. You get all the power of Gemini CLI with a proper UI — sessions, file uploads, downloadable PDFs, custom skills, and a REST API you can hit from scripts, bots, or other tools.
+
+### Why?
+
+- **Non-technical users** can't use a CLI. This gives them a ChatGPT-like interface.
+- **Developers** get a REST API with 15 endpoints for automation, scripting, and integration.
+- **Students/Researchers** get auto-generated PDFs with properly rendered LaTeX math formulas.
+- **Teams** can share skills (`.md` files) that give Gemini domain expertise on demand.
+- **It's free.** No API keys to manage, no billing — just sign in with Google.
+
+### Key Principles
+
+- **Zero sudo** — everything installs to your home directory. No admin password needed.
+- **Zero cloud** — runs entirely on your machine. No data leaves your laptop.
+- **Zero cost** — uses Google's free Gemini tier.
+- **One command** — single shell script sets up everything from scratch.
 
 ---
 
 ## Quick Start
 
-### macOS
-
-```bash
-# 1. Install prerequisites
-brew install node python3 pandoc
-brew install --cask basictex
-eval "$(/usr/libexec/path_helper)"
-
-# 2. Install Gemini CLI
-npm install -g @google/gemini-cli
-
-# 3. Run Gemini UI
-curl -fsSL https://github.com/goyaljai/jaika/raw/refs/heads/main/gemini-ui.sh | bash
-```
-
-### Ubuntu / Debian
-
-```bash
-# 1. Install prerequisites
-sudo apt update
-sudo apt install -y nodejs npm python3 python3-venv python3-pip pandoc \
-  texlive-latex-base texlive-fonts-recommended texlive-latex-extra
-
-# 2. Install Gemini CLI
-npm install -g @google/gemini-cli
-
-# 3. Run Gemini UI
-curl -fsSL https://github.com/goyaljai/jaika/raw/refs/heads/main/gemini-ui.sh | bash
-```
-
-### Fedora / RHEL
-
-```bash
-# 1. Install prerequisites
-sudo dnf install -y nodejs npm python3 python3-pip pandoc texlive-scheme-basic
-
-# 2. Install Gemini CLI
-npm install -g @google/gemini-cli
-
-# 3. Run Gemini UI
-curl -fsSL https://github.com/goyaljai/jaika/raw/refs/heads/main/gemini-ui.sh | bash
-```
-
-### Automatic Install (any platform)
-
-The shell script auto-detects your OS and installs everything for you:
-
 ```bash
 curl -fsSL https://github.com/goyaljai/jaika/raw/refs/heads/main/gemini-ui.sh | bash
 ```
 
-On first run, a browser window opens for Google sign-in. After that, go to `http://localhost:5001`.
+That's it. Works on macOS and Linux. The script:
+
+1. Installs Node.js (via Homebrew on mac, nvm on Linux)
+2. Installs Python 3 (via Homebrew on mac, checks existing on Linux)
+3. Installs Gemini CLI (`@google/gemini-cli`)
+4. Installs Pandoc (via Homebrew on mac, static binary on Linux)
+5. Installs TinyTeX for LaTeX math rendering (userspace, no sudo)
+6. Downloads the app from GitHub into `~/.gemini-ui/`
+7. Creates a Python venv and installs Flask
+8. Opens browser for Google OAuth (first run only)
+9. Starts the server and opens `http://localhost:5001`
+
+On subsequent runs, it skips already-installed dependencies and goes straight to launching.
 
 ---
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Chat UI** | Dark-themed chat interface with Markdown rendering and syntax-highlighted code blocks |
-| **Sessions** | Create, switch, delete independent chat sessions. Auto-named from first message. Persisted on disk |
-| **File Upload** | Attach any file (images, code, PDFs) for Gemini to analyze |
-| **PDF Generation** | File creation prompts auto-generate PDFs with LaTeX math support via pandoc |
-| **Skills (.md)** | Upload SKILL.md files to give Gemini specialized knowledge |
-| **Model Fallback** | Auto-switches between models when one hits capacity (429) |
-| **REST API** | 15 endpoints for programmatic access |
-| **Smart Detection** | Automatically detects "create a file" vs normal questions |
+### Chat Interface
+Dark-themed, responsive chat UI with full Markdown rendering — headings, bold, italic, tables, blockquotes, and syntax-highlighted code blocks for all major languages. Powered by [marked.js](https://github.com/markedjs/marked) and [highlight.js](https://highlightjs.org/).
+
+### Session Management
+Create, switch, and delete independent chat sessions from the sidebar. Each session has its own memory. Sessions auto-name themselves from your first message. All history is stored as JSON files on disk — survives browser reload, works across different browsers, works in incognito.
+
+### Smart Intent Detection
+Every prompt is classified locally (zero API cost, zero latency) using keyword matching:
+- **"What is gravity?"** → text mode — Gemini responds in chat
+- **"Create a sorting algorithms cheatsheet"** → file mode — Gemini creates a file, you get a PDF download
+
+No extra API call for classification. The detection looks for action words (`create`, `generate`, `write`, `make`) combined with object words (`file`, `document`, `script`, `cheatsheet`, `report`).
+
+### File Upload & Analysis
+Attach any file — screenshots, source code, PDFs, images — via the paperclip button. Files are uploaded to the server, and their paths are passed to Gemini for analysis. Gemini can read and understand the content of uploaded files.
+
+### PDF Generation with LaTeX
+When Gemini creates a document (e.g., a cheatsheet with math formulas), the backend:
+1. Detects the new file by diffing `~/` before and after the Gemini run
+2. Converts `.md` → `.pdf` using `pandoc + pdflatex` (TinyTeX)
+3. LaTeX math renders properly: `f(x) = 1/σ√(2π) · e^(-(x-μ)²/2σ²)`
+4. Serves the PDF for one-click download in the browser
+
+### Skills System (SKILL.md)
+Upload `.md` files as skills via the UI panel. Skills are installed into `~/.gemini/skills/` in the proper folder structure that Gemini CLI auto-discovers. When a prompt matches a skill's description, Gemini activates it automatically. Toggle skills on/off or delete them from the UI.
+
+### Model Fallback
+When the default Gemini model hits capacity (HTTP 429), the backend automatically tries the next model in the chain:
+```
+default → gemini-2.5-pro → gemini-2.5-flash → gemini-2.0-flash
+```
+The user never sees a capacity error — they just get a response.
+
+### Noise Filtering
+Gemini CLI outputs a lot of noise — MCP errors, auth logs, stack traces, retry messages. The backend filters all of it so users only see clean, relevant output.
+
+### REST API
+15 endpoints for full programmatic access. Use it from scripts, bots, CI/CD, or any HTTP client.
+
+---
+
+## Architecture
+
+```
+┌─────────────┐     HTTP/JSON     ┌──────────────┐    subprocess    ┌─────────────┐    OAuth+API    ┌─────────────┐
+│  Browser UI │ ◄──────────────► │ Flask Server │ ◄──────────────► │ Gemini CLI  │ ◄────────────► │ Google API  │
+│  HTML/JS    │                  │  Python      │                  │  Node.js    │                │  Cloud      │
+└─────────────┘                  └──────────────┘                  └─────────────┘                └─────────────┘
+                                       │
+                                       ▼
+                              ┌──────────────────┐
+                              │  pandoc+pdflatex  │
+                              │  (PDF generation) │
+                              └──────────────────┘
+```
+
+1. Browser sends prompt to Flask via REST API
+2. Flask classifies intent (text vs file) using local keyword matching
+3. Flask spawns `gemini --prompt "..."` as a subprocess
+4. For file requests, runs with `--yolo` and detects newly created files
+5. `.md` files are converted to PDF via `pandoc + pdflatex`
+6. Response (JSON with text or file download link) sent back to browser
 
 ---
 
@@ -86,7 +122,7 @@ Base URL: `http://localhost:5001`
 
 ### Prompts
 
-**Send a text prompt:**
+**Text prompt:**
 ```bash
 curl -s http://localhost:5001/api/prompt \
   -H "Content-Type: application/json" \
@@ -96,7 +132,7 @@ curl -s http://localhost:5001/api/prompt \
 {"type": "text", "text": "2 + 2 is 4."}
 ```
 
-**Send a file creation prompt:**
+**File creation prompt:**
 ```bash
 curl -s http://localhost:5001/api/prompt \
   -H "Content-Type: application/json" \
@@ -106,100 +142,87 @@ curl -s http://localhost:5001/api/prompt \
 {"type": "files", "files": [{"serverName": "abc123_fibonacci.py", "originalName": "fibonacci.py"}]}
 ```
 
-**Send a prompt with file attachment:**
+**Prompt with file attachment:**
 ```bash
 # Upload first
 curl -s -F "file=@screenshot.png" http://localhost:5001/api/upload
-# Then reference the path
+# Then reference the path in your prompt
 curl -s http://localhost:5001/api/prompt \
   -H "Content-Type: application/json" \
   -d '{"prompt": "what is in this image?", "files": ["/path/from/upload/response"]}'
 ```
 
-### File Operations
+### Files
 
-| Endpoint | Method | curl |
-|----------|--------|------|
-| Upload a file | POST | `curl -s -F "file=@myfile.py" http://localhost:5001/api/upload` |
-| Download a generated file | GET | `curl -O http://localhost:5001/api/download/<serverName>` |
+| Action | Method | curl |
+|--------|--------|------|
+| Upload | POST | `curl -s -F "file=@myfile.py" http://localhost:5001/api/upload` |
+| Download | GET | `curl -O http://localhost:5001/api/download/<serverName>` |
 
 ### Sessions
 
-| Endpoint | Method | curl |
-|----------|--------|------|
-| List all sessions | GET | `curl -s http://localhost:5001/api/sessions` |
-| Create new session | POST | `curl -s -X POST http://localhost:5001/api/sessions -H "Content-Type: application/json" -d '{"name": "My Chat"}'` |
-| Get session with messages | GET | `curl -s http://localhost:5001/api/sessions/<id>` |
-| Rename session | PUT | `curl -s -X PUT http://localhost:5001/api/sessions/<id> -H "Content-Type: application/json" -d '{"name": "New Name"}'` |
-| Delete session | DELETE | `curl -s -X DELETE http://localhost:5001/api/sessions/<id>` |
-| Add message | POST | `curl -s -X POST http://localhost:5001/api/sessions/<id>/messages -H "Content-Type: application/json" -d '{"role": "user", "text": "hello"}'` |
+| Action | Method | curl |
+|--------|--------|------|
+| List all | GET | `curl -s http://localhost:5001/api/sessions` |
+| Create | POST | `curl -s -X POST http://localhost:5001/api/sessions -H "Content-Type: application/json" -d '{"name": "My Chat"}'` |
+| Get with messages | GET | `curl -s http://localhost:5001/api/sessions/<id>` |
+| Rename | PUT | `curl -s -X PUT http://localhost:5001/api/sessions/<id> -H "Content-Type: application/json" -d '{"name": "New Name"}'` |
+| Delete | DELETE | `curl -s -X DELETE http://localhost:5001/api/sessions/<id>` |
+| Add message | POST | `curl -s -X POST http://localhost:5001/api/sessions/<id>/messages -H "Content-Type: application/json" -d '{"role":"user","text":"hello"}'` |
 | Clear messages | DELETE | `curl -s -X DELETE http://localhost:5001/api/sessions/<id>/messages` |
 
 ### Skills
 
-| Endpoint | Method | curl |
-|----------|--------|------|
-| List skills | GET | `curl -s http://localhost:5001/api/skills` |
-| Upload skill | POST | `curl -s -F "file=@my-skill.md" http://localhost:5001/api/skills/upload` |
-| Delete skill | DELETE | `curl -s -X DELETE http://localhost:5001/api/skills/my-skill` |
-
----
-
-## How It Works
-
-```
-[Browser UI]  ←→  [Flask Server]  ←→  [Gemini CLI]  ←→  [Google Gemini API]
-   HTML/JS          Python             Node.js             Cloud
-```
-
-1. Browser sends prompt to Flask via REST API
-2. Flask classifies intent (text vs file creation) using local keyword matching
-3. Flask spawns `gemini --prompt "..."` as a subprocess
-4. For file requests, runs with `--yolo` (auto-approve tools) and detects new files
-5. Markdown files are converted to PDF via `pandoc + pdflatex`
-6. Response (text or file download link) sent back as JSON
+| Action | Method | curl |
+|--------|--------|------|
+| List | GET | `curl -s http://localhost:5001/api/skills` |
+| Upload | POST | `curl -s -F "file=@my-skill.md" http://localhost:5001/api/skills/upload` |
+| Delete | DELETE | `curl -s -X DELETE http://localhost:5001/api/skills/my-skill` |
 
 ---
 
 ## Project Structure
 
 ```
-~/.gemini-ui/
-├── app.py                  # Flask server
+~/.gemini-ui/                    # Hidden install directory
+├── app.py                       # Flask server (~450 lines)
 ├── templates/
-│   └── index.html          # Full UI (single file)
+│   └── index.html               # Full UI (single file, ~1100 lines)
 ├── data/
-│   ├── sessions/           # Chat history (JSON per session)
-│   ├── uploads/            # User uploaded files
-│   └── outputs/            # Generated PDFs and files
-└── venv/                   # Python virtual environment
+│   ├── sessions/                # Chat history (one JSON file per session)
+│   ├── uploads/                 # User uploaded files
+│   └── outputs/                 # Generated PDFs and files
+├── venv/                        # Python virtual environment
+└── server.log                   # Server logs
 ```
 
 ---
 
-## Requirements
+## Dependencies
 
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| Node.js | 18+ | Runs Gemini CLI |
-| Python | 3.8+ | Runs Flask server |
-| Pandoc | any | Markdown → PDF conversion |
-| LaTeX | basictex / texlive | Renders LaTeX math in PDFs |
-| Gemini CLI | latest | AI engine |
+| Tool | Install Location | Purpose |
+|------|-----------------|---------|
+| Node.js | Homebrew / nvm (`~/.nvm/`) | Runs Gemini CLI |
+| Python 3 | Homebrew / system | Runs Flask server |
+| Gemini CLI | npm global | AI engine |
+| Pandoc | Homebrew / `~/.local/bin/` | Markdown to PDF |
+| TinyTeX | `~/Library/TinyTeX/` or `~/.TinyTeX/` | LaTeX math in PDFs |
+| Flask | `~/.gemini-ui/venv/` | Web framework |
 
-All installed automatically by the shell script.
+All installed automatically by the shell script. Zero sudo on macOS. Zero sudo on Linux (except Python if not pre-installed — the script will tell you).
 
 ---
 
-## Re-running
+## Tech Stack
 
-After first install, just run the same command again:
+- **Frontend**: Vanilla HTML/CSS/JS, marked.js, highlight.js, html2pdf.js
+- **Backend**: Python 3, Flask
+- **AI**: Google Gemini CLI (@google/gemini-cli)
+- **PDF**: Pandoc + TinyTeX (pdflatex)
+- **Auth**: Google OAuth (handled by Gemini CLI)
+- **Storage**: JSON files on disk
 
-```bash
-curl -fsSL https://github.com/goyaljai/jaika/raw/refs/heads/main/gemini-ui.sh | bash
-```
-
-It skips already-installed dependencies and starts the server.
+~1,550 total lines of code.
 
 ---
 
