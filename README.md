@@ -77,6 +77,9 @@ When Gemini creates a document (e.g., a cheatsheet with math formulas), the back
 ### Skills System (SKILL.md)
 Upload `.md` files as skills via the UI panel. Skills are installed into `~/.gemini/skills/` in the proper folder structure that Gemini CLI auto-discovers. When a prompt matches a skill's description, Gemini activates it automatically. Toggle skills on/off or delete them from the UI.
 
+### Conversation Memory
+Each session is linked to a Gemini CLI session via `--resume`. This means Gemini remembers everything said within a session — names, context, files created, preferences. Start a new session for a fresh conversation with no prior memory.
+
 ### Model Fallback
 When the default Gemini model hits capacity (HTTP 429), the backend automatically tries the next model in the chain:
 ```
@@ -129,7 +132,15 @@ curl -s http://localhost:5001/api/prompt \
   -d '{"prompt": "what is 2+2"}'
 ```
 ```json
-{"type": "text", "text": "2 + 2 is 4."}
+{"type": "text", "text": "2 + 2 is 4.", "session_id": "abc123"}
+```
+Pass the returned `session_id` in subsequent calls to maintain conversation memory:
+
+**Follow-up with memory:**
+```bash
+curl -s http://localhost:5001/api/prompt \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "what did I just ask?", "session_id": "abc123"}'
 ```
 
 **File creation prompt:**

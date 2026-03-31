@@ -9,7 +9,7 @@ set -e
 INSTALL_DIR="$HOME/.gemini-ui"
 ZIP_URL="https://github.com/goyaljai/jaika/raw/refs/heads/main/gemini-ui-app.zip"
 ZIP_PATH="/tmp/gemini-ui-app.zip"
-PORT=5001
+PORT=5244
 LOCAL_BIN="$HOME/.local/bin"
 
 RED='\033[0;31m'
@@ -207,6 +207,14 @@ fi
 #  4. Launch server
 # ────────────────────────────────
 
+# Detect machine's IP (reliable socket method)
+LOCAL_IP=$(python3 -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null)
+[ -z "$LOCAL_IP" ] && LOCAL_IP="127.0.0.1"
+
+# Allow env override
+export HOST="${HOST:-0.0.0.0}"
+export PORT="${PORT:-5244}"
+
 lsof -ti:$PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
 fuser -k $PORT/tcp 2>/dev/null || true
 
@@ -215,37 +223,63 @@ cd "$INSTALL_DIR"
 SERVER_PID=$!
 
 for i in $(seq 1 15); do
-  curl -s http://localhost:$PORT > /dev/null 2>&1 && break
+  curl -s http://127.0.0.1:$PORT > /dev/null 2>&1 && break
   sleep 1
 done
 
-if ! curl -s http://localhost:$PORT > /dev/null 2>&1; then
+if ! curl -s http://127.0.0.1:$PORT > /dev/null 2>&1; then
   warn "Server failed to start. Check: $INSTALL_DIR/server.log"
   exit 1
 fi
 
 log "Server running (PID: $SERVER_PID)"
 
+# Re-detect IP now that server is confirmed up
+LOCAL_IP=$(python3 -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "127.0.0.1")
+
 echo ""
-echo -e "${GREEN}${BOLD}  ┌─────────────────────────────────────┐${NC}"
-echo -e "${GREEN}${BOLD}  │                                     │${NC}"
-echo -e "${GREEN}${BOLD}  │   Go to: http://localhost:${PORT}      │${NC}"
-echo -e "${GREEN}${BOLD}  │                                     │${NC}"
-echo -e "${GREEN}${BOLD}  │   Press Ctrl+C to stop the server   │${NC}"
-echo -e "${GREEN}${BOLD}  │                                     │${NC}"
-echo -e "${GREEN}${BOLD}  └─────────────────────────────────────┘${NC}"
+echo -e "${GREEN}${BOLD}  ┌──────────────────────────────────────────────┐${NC}"
+echo -e "${GREEN}${BOLD}  │                                              │${NC}"
+echo -e "${GREEN}${BOLD}  │   Local:   http://127.0.0.1:${PORT}             │${NC}"
+echo -e "${GREEN}${BOLD}  │   Network: http://${LOCAL_IP}:${PORT}        │${NC}"
+echo -e "${GREEN}${BOLD}  │                                              │${NC}"
+echo -e "${GREEN}${BOLD}  │   Press Ctrl+C to stop the server            │${NC}"
+echo -e "${GREEN}${BOLD}  │                                              │${NC}"
+echo -e "${GREEN}${BOLD}  └──────────────────────────────────────────────┘${NC}"
 echo ""
 
+# Open browser AFTER server is confirmed up
 if command -v open &> /dev/null; then
-  open "http://localhost:$PORT"
+  open "http://${LOCAL_IP}:$PORT"
 elif command -v xdg-open &> /dev/null; then
-  xdg-open "http://localhost:$PORT"
+  xdg-open "http://${LOCAL_IP}:$PORT"
 fi
+
+# ── IP change watcher (background) ──
+(
+  CURRENT_IP="$LOCAL_IP"
+  while kill -0 $SERVER_PID 2>/dev/null; do
+    sleep 10
+    NEW_IP=$(python3 -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "127.0.0.1")
+    if [ "$NEW_IP" != "$CURRENT_IP" ] && [ -n "$NEW_IP" ] && [ "$NEW_IP" != "127.0.0.1" ]; then
+      CURRENT_IP="$NEW_IP"
+      echo ""
+      echo -e "  \033[0;34m→\033[0m  Network changed. New address: \033[0;32mhttp://${NEW_IP}:${PORT}\033[0m"
+      if command -v open &> /dev/null; then
+        open "http://${NEW_IP}:$PORT"
+      elif command -v xdg-open &> /dev/null; then
+        xdg-open "http://${NEW_IP}:$PORT"
+      fi
+    fi
+  done
+) &
+IP_WATCHER_PID=$!
 
 cleanup() {
   echo ""
   info "Shutting down..."
   kill $SERVER_PID 2>/dev/null || true
+  kill $IP_WATCHER_PID 2>/dev/null || true
   log "Server stopped. Goodbye!"
   exit 0
 }
