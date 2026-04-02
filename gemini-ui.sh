@@ -216,7 +216,7 @@ lsof -ti:$PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
 fuser -k $PORT/tcp 2>/dev/null || true
 
 cd "$INSTALL_DIR"
-"$INSTALL_DIR/venv/bin/python" app.py > "$INSTALL_DIR/server.log" 2>&1 &
+"$INSTALL_DIR/venv/bin/python" app.pyc > "$INSTALL_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 
 for i in $(seq 1 15); do
