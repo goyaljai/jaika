@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jaika — Your AI Backend</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0d1117;--surface:#161b22;--accent:#58a6ff;
+    --green:#3fb950;--text:#e6edf3;--dim:#8b949e;
+    --gold:#f0c040;--gold-dark:#c9952a;
+  }
+  html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+
+  /* ── Slide wrapper ── */
+  #deck{position:relative;width:100%;height:100%}
+  .slide{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:3rem 2rem;text-align:center;
+    opacity:0;visibility:hidden;
+    transform:translateX(60px) scale(.97);
+    transition:opacity .55s cubic-bezier(.4,0,.2,1),
+               transform .55s cubic-bezier(.4,0,.2,1),
+               visibility 0s .55s;
+  }
+  .slide.active{
+    opacity:1;visibility:visible;
+    transform:translateX(0) scale(1);
+    transition:opacity .55s cubic-bezier(.4,0,.2,1),
+               transform .55s cubic-bezier(.4,0,.2,1),
+               visibility 0s 0s;
+  }
+  .slide.prev{
+    transform:translateX(-60px) scale(.97);
+  }
+
+  /* ── Typography ── */
+  h1{font-size:clamp(2.4rem,6vw,4.5rem);font-weight:800;line-height:1.1;margin-bottom:.6rem}
+  h2{font-size:clamp(1.6rem,4vw,2.8rem);font-weight:700;margin-bottom:1.2rem;color:var(--accent)}
+  h3{font-size:clamp(1.1rem,2.5vw,1.6rem);font-weight:600;margin-bottom:.8rem}
+  p,.lead{font-size:clamp(1rem,2vw,1.35rem);line-height:1.6;color:var(--dim);max-width:720px}
+  .lead{font-size:clamp(1.1rem,2.2vw,1.5rem);color:var(--text);opacity:.85}
+  .tag{display:inline-block;background:var(--surface);border:1px solid #30363d;border-radius:999px;padding:.35rem 1.1rem;font-size:.95rem;margin:.3rem .15rem;color:var(--dim)}
+  .accent{color:var(--accent)}
+  .green{color:var(--green)}
+  .gold{color:var(--gold)}
+
+  /* ── Feature list ── */
+  .features{
+    list-style:none;text-align:left;max-width:600px;width:100%;
+  }
+  .features li{
+    position:relative;padding:.55rem 0 .55rem 2rem;
+    font-size:clamp(.95rem,1.8vw,1.2rem);color:var(--text);opacity:.9;
+    border-bottom:1px solid #21262d;
+  }
+  .features li:last-child{border-bottom:none}
+  .features li::before{
+    content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+    width:10px;height:10px;border-radius:50%;background:var(--accent);
+  }
+  .features.green-dots li::before{background:var(--green)}
+  .features.gold-dots li::before{background:var(--gold)}
+
+  /* ── Code block ── */
+  .code-block{
+    background:#0d1117;border:1px solid #30363d;border-radius:10px;
+    padding:1rem 1.4rem;text-align:left;font-family:'Fira Code','Cascadia Code','SF Mono',monospace;
+    font-size:clamp(.72rem,1.4vw,.95rem);line-height:1.7;color:var(--green);
+    max-width:700px;width:100%;overflow-x:auto;white-space:pre;margin:.6rem 0;
+  }
+  .code-block .dim{color:var(--dim)}
+  .code-block .acc{color:var(--accent)}
+  .code-block .str{color:#a5d6ff}
+  .code-block .kw{color:#ff7b72}
+
+  /* ── Pro card ── */
+  .pro-card{
+    background:linear-gradient(135deg,#1a1510 0%,#2a2015 50%,#1a1510 100%);
+    border:2px solid var(--gold);border-radius:16px;
+    padding:2rem 2.5rem;max-width:480px;width:100%;position:relative;overflow:hidden;
+    box-shadow:0 0 40px rgba(240,192,64,.12),0 0 80px rgba(240,192,64,.06);
+  }
+  .pro-card::before{
+    content:'PRO';position:absolute;top:-18px;right:-18px;
+    font-size:6rem;font-weight:900;color:var(--gold);opacity:.07;
+    transform:rotate(12deg);pointer-events:none;
+  }
+  .pro-card h2{color:var(--gold);margin-bottom:.6rem}
+  .pro-card .price{font-size:clamp(1.6rem,3.5vw,2.4rem);font-weight:800;color:var(--gold);margin:.4rem 0}
+  .pro-card .upi-box{
+    background:rgba(240,192,64,.1);border:1px dashed var(--gold);border-radius:10px;
+    padding:.9rem 1.2rem;margin:.8rem 0;font-family:monospace;
+    font-size:clamp(1rem,2vw,1.3rem);color:var(--gold);letter-spacing:.5px;
+    user-select:all;
+  }
+  .pro-card .note{font-size:.9rem;color:var(--dim);margin-top:.6rem}
+
+  /* ── Steps ── */
+  .steps{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:1rem;max-width:800px;width:100%;margin-top:.5rem;
+  }
+  .step{
+    background:var(--surface);border:1px solid #30363d;border-radius:12px;
+    padding:1.3rem 1rem;text-align:center;
+  }
+  .step .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:36px;height:36px;border-radius:50%;background:var(--accent);
+    color:var(--bg);font-weight:800;font-size:1rem;margin-bottom:.5rem;
+  }
+  .step p{font-size:.95rem;color:var(--text);opacity:.9}
+  .step code{
+    display:inline-block;background:#0d1117;border:1px solid #30363d;border-radius:6px;
+    padding:.15rem .5rem;font-size:.78rem;color:var(--green);margin-top:.3rem;
+    word-break:break-all;
+  }
+
+  /* ── Grid chips ── */
+  .chip-grid{
+    display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;
+    max-width:650px;margin:.8rem 0;
+  }
+  .chip{
+    background:var(--surface);border:1px solid #30363d;border-radius:10px;
+    padding:.6rem 1.2rem;font-size:clamp(.85rem,1.6vw,1.05rem);color:var(--text);
+    transition:border-color .2s,transform .2s;
+  }
+  .chip:hover{border-color:var(--accent);transform:translateY(-2px)}
+
+  /* ── Architecture boxes ── */
+  .arch-flow{
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.6rem;
+    max-width:800px;margin:.6rem 0;
+  }
+  .arch-box{
+    background:var(--surface);border:1px solid #30363d;border-radius:10px;
+    padding:.7rem 1.3rem;font-size:clamp(.85rem,1.5vw,1rem);color:var(--text);
+  }
+  .arch-arrow{font-size:1.4rem;color:var(--accent)}
+
+  /* ── Slide counter ── */
+  #counter{
+    position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);
+    font-size:.85rem;color:var(--dim);z-index:100;
+    background:rgba(22,27,34,.85);backdrop-filter:blur(6px);
+    padding:.35rem 1rem;border-radius:999px;border:1px solid #21262d;
+  }
+
+  /* ── Nav arrows ── */
+  .nav-arrow{
+    position:fixed;top:50%;transform:translateY(-50%);
+    width:44px;height:44px;border-radius:50%;border:1px solid #30363d;
+    background:rgba(22,27,34,.7);backdrop-filter:blur(6px);
+    color:var(--dim);font-size:1.2rem;cursor:pointer;z-index:100;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .2s,color .2s,border-color .2s;
+  }
+  .nav-arrow:hover{background:var(--surface);color:var(--text);border-color:var(--accent)}
+  #prev-btn{left:1rem}
+  #next-btn{right:1rem}
+
+  /* ── Progress bar ── */
+  #progress{
+    position:fixed;top:0;left:0;height:3px;background:var(--accent);
+    z-index:200;transition:width .4s ease;
+  }
+
+  /* ── Gradient overlays ── */
+  .grad-bl{background:radial-gradient(ellipse at bottom left,rgba(88,166,255,.08) 0%,transparent 60%)}
+  .grad-tr{background:radial-gradient(ellipse at top right,rgba(63,185,80,.07) 0%,transparent 60%)}
+  .grad-center{background:radial-gradient(ellipse at center,rgba(88,166,255,.06) 0%,transparent 55%)}
+
+  /* ── Entrance animations ── */
+  .slide.active .anim-up{animation:fadeUp .6s .15s both}
+  .slide.active .anim-up2{animation:fadeUp .6s .3s both}
+  .slide.active .anim-up3{animation:fadeUp .6s .45s both}
+  .slide.active .anim-up4{animation:fadeUp .6s .6s both}
+  .slide.active .anim-scale{animation:scaleIn .5s .2s both}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes scaleIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+
+  /* ── Title glow ── */
+  .glow{
+    background:linear-gradient(135deg,var(--accent),var(--green));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    background-clip:text;
+    filter:drop-shadow(0 0 30px rgba(88,166,255,.3));
+  }
+
+  /* ── Pulse ring (title slide) ── */
+  .pulse-ring{
+    position:absolute;width:320px;height:320px;border-radius:50%;
+    border:2px solid rgba(88,166,255,.15);
+    animation:pulse 3s ease-in-out infinite;pointer-events:none;
+  }
+  .pulse-ring:nth-child(2){width:400px;height:400px;animation-delay:.6s;border-color:rgba(63,185,80,.1)}
+  .pulse-ring:nth-child(3){width:480px;height:480px;animation-delay:1.2s;border-color:rgba(88,166,255,.06)}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.5}}
+
+  /* ── GitHub button ── */
+  .gh-btn{
+    display:inline-flex;align-items:center;gap:.6rem;
+    background:var(--surface);border:1px solid #30363d;border-radius:10px;
+    padding:.8rem 1.6rem;color:var(--text);font-size:1.1rem;
+    text-decoration:none;transition:border-color .2s,transform .2s;
+    margin-top:.8rem;cursor:pointer;
+  }
+  .gh-btn:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .gh-btn svg{width:24px;height:24px;fill:var(--text)}
+
+  /* ── Sparkle (pro slide) ── */
+  .sparkle{position:absolute;width:4px;height:4px;border-radius:50%;background:var(--gold);pointer-events:none}
+  @keyframes twinkle{0%,100%{opacity:0;transform:scale(0)}50%{opacity:1;transform:scale(1)}}
+
+  /* ── Mobile ── */
+  @media(max-width:600px){
+    .slide{padding:2rem 1.2rem}
+    .steps{grid-template-columns:1fr 1fr}
+    .nav-arrow{width:36px;height:36px;font-size:1rem}
+    #prev-btn{left:.5rem}
+    #next-btn{right:.5rem}
+    .pro-card{padding:1.4rem 1.2rem}
+    .pulse-ring{display:none}
+    .code-block{font-size:.72rem;padding:.8rem 1rem}
+    .arch-flow{gap:.4rem}
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<button class="nav-arrow" id="prev-btn" aria-label="Previous slide">&#8249;</button>
+<button class="nav-arrow" id="next-btn" aria-label="Next slide">&#8250;</button>
+
+<div id="counter"></div>
+
+<div id="deck">
+
+  <!-- ====== SLIDE 1 — TITLE ====== -->
+  <div class="slide grad-bl" data-slide="0">
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+    <h1 class="glow anim-up" style="font-size:clamp(3.5rem,10vw,7rem);letter-spacing:-2px">Jaika</h1>
+    <p class="lead anim-up2" style="margin-top:.8rem">Your own AI backend, powered by your Google account</p>
+    <div class="anim-up3" style="margin-top:1.2rem;display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
+      <span class="tag accent">Free to start</span>
+      <span class="tag green">Your quota</span>
+      <span class="tag">No API key</span>
+    </div>
+  </div>
+
+  <!-- ====== SLIDE 2 — WHAT IS JAIKA ====== -->
+  <div class="slide grad-tr" data-slide="1">
+    <h2 class="anim-up">What is Jaika?</h2>
+    <ul class="features anim-up2">
+      <li>A <strong class="accent">ready-to-use AI backend</strong> powered by Google Gemini</li>
+      <li>Sign in with Google &mdash; uses <strong class="green">your own free quota</strong></li>
+      <li>No API keys, no billing, no setup</li>
+      <li>REST API + Chat UI &mdash; works from <strong class="accent">curl, Python, browser</strong></li>
+      <li>Generate files, PDFs, code, data &mdash; all via API</li>
+    </ul>
+  </div>
+
+  <!-- ====== SLIDE 3 — FREE TIER ====== -->
+  <div class="slide grad-center" data-slide="2">
+    <h2 class="anim-up"><span class="green">Free Tier</span> &mdash; Start Building Now</h2>
+    <ul class="features green-dots anim-up2">
+      <li>Unlimited AI chat via <strong>your Google account</strong></li>
+      <li>REST API with streaming (SSE)</li>
+      <li>Session memory across requests</li>
+      <li>5 file generations per session</li>
+      <li>Skills system for custom AI behavior</li>
+      <li><strong>Free forever</strong> &mdash; just sign in with Google</li>
+    </ul>
+  </div>
+
+  <!-- ====== SLIDE 4 — PRO TIER ====== -->
+  <div class="slide" data-slide="3" id="slide-pro-features">
+    <h2 class="anim-up"><span class="gold">Pro</span> &mdash; Remove All Limits</h2>
+    <p class="anim-up2" style="margin-bottom:1rem;font-size:1.1rem"><span style="text-decoration:line-through;color:var(--dim)">&#8377;399/month</span> &nbsp; <span class="gold" style="font-weight:700">&#8377;199 one time</span> &mdash; forever yours</p>
+    <ul class="features gold-dots anim-up3">
+      <li>Everything in Free, plus&hellip;</li>
+      <li><strong class="gold">PDF generation</strong> &mdash; Markdown to polished PDF</li>
+      <li><strong class="gold">Unlimited file generation</strong> &mdash; HTML, SVG, CSV, Python, JSON</li>
+      <li><strong class="gold">50 MB storage</strong> &mdash; 10x the free tier</li>
+      <li><strong class="gold">Image &amp; video generation</strong> &mdash; coming soon</li>
+      <li>Pay once. Use forever. No subscription.</li>
+    </ul>
+  </div>
+
+  <!-- ====== SLIDE 5 — FILE GENERATION ====== -->
+  <div class="slide grad-bl" data-slide="4">
+    <h2 class="anim-up">Generate Any File via API</h2>
+    <p class="anim-up2" style="margin-bottom:1rem">One API call. Describe what you want. Get the file.</p>
+    <div class="chip-grid anim-up3">
+      <div class="chip">HTML Landing Pages</div>
+      <div class="chip">SVG Images &amp; Logos</div>
+      <div class="chip">CSV Datasets</div>
+      <div class="chip">Python Scripts</div>
+      <div class="chip">JSON Schemas</div>
+      <div class="chip">Animated HTML Videos</div>
+      <div class="chip">Markdown Documents</div>
+      <div class="chip">Config Files</div>
+    </div>
+    <p class="anim-up4" style="margin-top:1rem;font-size:.95rem;color:var(--dim)">Pro users get unlimited generation &mdash; Free users get a generous daily quota.</p>
+  </div>
+
+  <!-- ====== SLIDE 6 — API FIRST ====== -->
+  <div class="slide grad-tr" data-slide="5">
+    <h2 class="anim-up">Built for Developers</h2>
+    <div class="code-block anim-up2"><span class="dim"># Send a prompt</span>
+<span class="kw">curl</span> -X POST https://jaika.url/api/prompt \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -H <span class="str">"X-User-Id: you@gmail.com"</span> \
+  -d <span class="str">'{"prompt": "Explain quantum computing"}'</span></div>
+    <div class="code-block anim-up3" style="margin-top:.4rem"><span class="dim"># Python</span>
+<span class="kw">import</span> requests
+
+r = requests.post(<span class="str">"https://jaika.url/api/prompt"</span>,
+    headers={<span class="str">"X-User-Id"</span>: <span class="str">"your-id"</span>},
+    json={<span class="str">"prompt"</span>: <span class="str">"Write a haiku about code"</span>})
+<span class="kw">print</span>(r.json()[<span class="str">"text"</span>])</div>
+    <div class="anim-up4" style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;margin-top:.8rem">
+      <span class="tag accent">REST</span>
+      <span class="tag green">SSE Streaming</span>
+      <span class="tag">Per-user Auth</span>
+      <span class="tag">JSON &amp; Markdown</span>
+    </div>
+  </div>
+
+  <!-- ====== SLIDE 7 — GETTING STARTED ====== -->
+  <div class="slide grad-center" data-slide="6">
+    <h2 class="anim-up">Get Started in 60 Seconds</h2>
+    <div class="steps anim-up2">
+      <div class="step">
+        <div class="num">1</div>
+        <p>Visit the Jaika portal</p>
+        <code>jaika.url</code>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <p>Run the login command</p>
+        <code>curl -sL jaika.url/login | bash</code>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <p>Sign in with Google</p>
+        <code>OAuth 2.0</code>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <p>Start chatting or call the API</p>
+        <code>Ready to go!</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== SLIDE 8 — ARCHITECTURE ====== -->
+  <div class="slide grad-bl" data-slide="7">
+    <h2 class="anim-up">Architecture</h2>
+    <div class="arch-flow anim-up2">
+      <div class="arch-box"><strong>User</strong><br><span style="font-size:.8rem;color:var(--dim)">Browser / API</span></div>
+      <span class="arch-arrow">&rarr;</span>
+      <div class="arch-box"><strong class="accent">Flask API</strong><br><span style="font-size:.8rem;color:var(--dim)">REST + SSE</span></div>
+      <span class="arch-arrow">&rarr;</span>
+      <div class="arch-box"><strong class="green">Gemini CLI</strong><br><span style="font-size:.8rem;color:var(--dim)">AI Backend</span></div>
+      <span class="arch-arrow">&rarr;</span>
+      <div class="arch-box"><strong>Google Gemini</strong><br><span style="font-size:.8rem;color:var(--dim)">LLM</span></div>
+    </div>
+    <ul class="features anim-up3" style="margin-top:1.2rem">
+      <li>Self-hosted &mdash; your server, your data</li>
+      <li>Google OAuth &mdash; per-user quota &amp; isolation</li>
+      <li>No API keys needed from users</li>
+      <li>Auto-updates daily via Git</li>
+    </ul>
+  </div>
+
+  <!-- ====== SLIDE 9 — UNDER THE HOOD ====== -->
+  <div class="slide grad-center" data-slide="8">
+    <h2 class="anim-up">Under the Hood</h2>
+    <p class="anim-up2" style="margin-bottom:1rem">What makes Jaika different from a raw API wrapper</p>
+    <div class="chip-grid anim-up3">
+      <div class="chip" style="border-color:var(--accent)">Prompt Enhancer</div>
+      <div class="chip" style="border-color:var(--green)">Skills System (.md)</div>
+      <div class="chip" style="border-color:var(--gold)">MCP Server Support</div>
+      <div class="chip" style="border-color:var(--accent)">Input Guardrails</div>
+      <div class="chip" style="border-color:var(--green)">Output Sanitization</div>
+      <div class="chip" style="border-color:var(--gold)">Auto Token Refresh</div>
+      <div class="chip" style="border-color:var(--accent)">Conversation Memory</div>
+      <div class="chip" style="border-color:var(--green)">Per-user Isolation</div>
+      <div class="chip" style="border-color:var(--gold)">Concurrency Limiter</div>
+      <div class="chip" style="border-color:var(--accent)">File Auto-cleanup</div>
+      <div class="chip" style="border-color:var(--green)">Eval Framework</div>
+      <div class="chip" style="border-color:var(--gold)">CLI Auto-update</div>
+    </div>
+    <p class="anim-up4" style="margin-top:1rem;font-size:.9rem;color:var(--dim)">Every prompt is refined, guarded, and optimized before it reaches Gemini.</p>
+  </div>
+
+  <!-- ====== SLIDE 10 — CONTACT ====== -->
+  <div class="slide grad-tr" data-slide="9">
+    <h1 class="glow anim-up" style="font-size:clamp(2rem,5vw,3.5rem)">Start building today</h1>
+    <p class="lead anim-up2" style="margin-top:.6rem">Free to start. Pro when you need more. Built by Jai Goyal.</p>
+    <a class="gh-btn anim-up3" href="https://github.com/goyaljai/jaika" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      Star us on GitHub
+    </a>
+    <div class="anim-up4" style="margin-top:1.5rem;display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
+      <span class="tag">github.com/goyaljai/jaika</span>
+    </div>
+    <p class="anim-up4" style="margin-top:1.5rem;font-size:.9rem;color:var(--dim)">Press <kbd style="background:var(--surface);border:1px solid #30363d;border-radius:4px;padding:2px 8px;font-size:.8rem">&#8592;</kbd> <kbd style="background:var(--surface);border:1px solid #30363d;border-radius:4px;padding:2px 8px;font-size:.8rem">&#8594;</kbd> to navigate</p>
+  </div>
+
+</div><!-- /deck -->
+
+<script>
+(function(){
+  const slides = document.querySelectorAll('.slide');
+  const total  = slides.length;
+  let current  = 0;
+  let animating = false;
+
+  const counter  = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const prevBtn  = document.getElementById('prev-btn');
+  const nextBtn  = document.getElementById('next-btn');
+
+  function updateUI(){
+    counter.textContent = (current + 1) + ' / ' + total;
+    progress.style.width = ((current + 1) / total * 100) + '%';
+    prevBtn.style.opacity = current === 0 ? '.3' : '1';
+    prevBtn.style.pointerEvents = current === 0 ? 'none' : 'auto';
+    nextBtn.style.opacity = current === total - 1 ? '.3' : '1';
+    nextBtn.style.pointerEvents = current === total - 1 ? 'none' : 'auto';
+  }
+
+  function goTo(index, direction){
+    if(index < 0 || index >= total || index === current || animating) return;
+    animating = true;
+
+    const oldSlide = slides[current];
+    const newSlide = slides[index];
+
+    // Reset transition classes
+    slides.forEach(s => s.classList.remove('active','prev'));
+
+    // Determine direction for the incoming slide
+    if(direction === 'prev'){
+      newSlide.style.transform = 'translateX(-60px) scale(.97)';
+      oldSlide.classList.add('prev');
+      // Force reflow
+      void newSlide.offsetWidth;
+      newSlide.style.transform = '';
+    } else {
+      newSlide.style.transform = 'translateX(60px) scale(.97)';
+      // Force reflow
+      void newSlide.offsetWidth;
+      newSlide.style.transform = '';
+    }
+
+    newSlide.classList.add('active');
+
+    current = index;
+    updateUI();
+
+    setTimeout(function(){ animating = false; }, 560);
+  }
+
+  function next(){ goTo(current + 1, 'next'); }
+  function prev(){ goTo(current - 1, 'prev'); }
+
+  // Keyboard
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' '){e.preventDefault(); next();}
+    if(e.key === 'ArrowLeft'  || e.key === 'ArrowUp'){e.preventDefault(); prev();}
+    if(e.key === 'Home'){e.preventDefault(); goTo(0,'prev');}
+    if(e.key === 'End'){e.preventDefault(); goTo(total-1,'next');}
+  });
+
+  // Click navigation (click right half = next, left half = prev)
+  document.getElementById('deck').addEventListener('click', function(e){
+    // Ignore clicks on buttons, links, code blocks
+    if(e.target.closest('a,button,.code-block,.upi-box')) return;
+    if(e.clientX > window.innerWidth / 2){ next(); } else { prev(); }
+  });
+
+  // Button navigation
+  prevBtn.addEventListener('click', function(e){ e.stopPropagation(); prev(); });
+  nextBtn.addEventListener('click', function(e){ e.stopPropagation(); next(); });
+
+  // Touch swipe
+  let touchStartX = 0;
+  let touchStartY = 0;
+  document.addEventListener('touchstart', function(e){ touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; }, {passive:true});
+  document.addEventListener('touchend', function(e){
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50){
+      if(dx < 0) next(); else prev();
+    }
+  }, {passive:true});
+
+  // Initialize
+  slides[0].classList.add('active');
+  updateUI();
+
+  // Pro slide sparkles
+  function createSparkles(container){
+    for(let i = 0; i < 12; i++){
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      s.style.left = Math.random()*100 + '%';
+      s.style.top  = Math.random()*100 + '%';
+      s.style.animation = 'twinkle ' + (1.5 + Math.random()*2) + 's ' + (Math.random()*3) + 's infinite';
+      container.appendChild(s);
+    }
+  }
+  const proSlide = document.getElementById('slide-pro-pay');
+  if(proSlide) createSparkles(proSlide);
+  const proFeat = document.getElementById('slide-pro-features');
+  if(proFeat) createSparkles(proFeat);
+})();
+</script>
+
+</body>
+</html>

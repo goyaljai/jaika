@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jaika Pro</title>
+<style>
+:root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff; --gold: #d4a017; --green: #3fb950; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.container { max-width: 480px; width: 100%; padding: 20px; }
+h1 { font-size: 36px; text-align: center; margin-bottom: 4px; }
+h1 span { background: linear-gradient(135deg, var(--gold), #f5c842); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.subtitle { text-align: center; color: var(--text2); font-size: 15px; margin-bottom: 28px; }
+.card { background: var(--surface); border: 2px solid var(--gold); border-radius: 16px; padding: 28px; text-align: center; margin-bottom: 24px; }
+.price { font-size: 32px; font-weight: 700; color: var(--gold); margin: 12px 0; }
+.price small { font-size: 16px; color: var(--text2); font-weight: 400; }
+.features { text-align: left; margin: 20px 0; }
+.features div { padding: 6px 0; font-size: 14px; color: var(--text2); }
+.features div::before { content: "✓ "; color: var(--green); font-weight: bold; }
+.qr-section { margin: 24px 0; }
+.qr-section img { width: 200px; height: 200px; border-radius: 12px; background: #fff; padding: 8px; }
+.upi-box { background: var(--bg); border: 1px dashed var(--gold); border-radius: 8px; padding: 12px; margin: 12px auto; max-width: 280px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.upi-box code { font-family: 'SF Mono', monospace; font-size: 15px; color: var(--gold); }
+.upi-box button { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); padding: 4px 10px; cursor: pointer; font-size: 12px; }
+.upi-box button:hover { color: var(--gold); border-color: var(--gold); }
+.whatsapp { display: inline-flex; align-items: center; gap: 8px; background: #25d366; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; text-decoration: none; margin: 16px 0; }
+.whatsapp:hover { background: #20bd5a; }
+.note { color: var(--text2); font-size: 13px; margin-top: 12px; line-height: 1.5; }
+.back { display: block; text-align: center; color: var(--accent); font-size: 14px; margin-top: 20px; text-decoration: none; }
+.back:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1><span>Jaika Pro</span></h1>
+  <p class="subtitle">Lifetime access. One payment. Forever.</p>
+
+  <div class="card">
+    <div class="price">$2 USD <small>/ ₹199 INR</small></div>
+    <div style="color:var(--text2);font-size:13px">One time — no subscription</div>
+
+    <div class="features">
+      <div>Unlimited file generation (HTML, SVG, CSV, Python, JSON)</div>
+      <div>PDF generation (Markdown to PDF)</div>
+      <div>50MB storage (vs 5MB free)</div>
+      <div>Image & video generation (coming soon)</div>
+      <div>Priority support</div>
+      <div>Everything in Free tier included</div>
+    </div>
+
+    <div class="qr-section">
+      <p style="font-size:14px;color:var(--text2);margin-bottom:12px">Scan to pay with any UPI app:</p>
+      <img src="/static/qr.png" alt="UPI QR" style="width:220px;height:auto">
+    </div>
+
+    <div class="upi-box">
+      <code>8890104936@goaxb</code>
+      <button onclick="navigator.clipboard.writeText('8890104936@goaxb');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
+    </div>
+  </div>
+
+  <div style="text-align:center">
+    <p style="font-size:15px;font-weight:600;margin-bottom:8px">After payment:</p>
+    <a href="https://wa.me/918890104936?text=Hi%2C%20I%20paid%20for%20Jaika%20Pro.%20My%20email%3A%20" class="whatsapp">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492l4.649-1.218A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75c-2.16 0-4.162-.682-5.803-1.84l-.416-.247-4.312 1.13 1.15-4.203-.272-.432A9.71 9.71 0 012.25 12 9.75 9.75 0 0112 2.25 9.75 9.75 0 0121.75 12 9.75 9.75 0 0112 21.75z"/></svg>
+      WhatsApp 8890104936
+    </a>
+    <p class="note">Message us your registered email after payment.<br>We'll activate Pro within minutes.</p>
+  </div>
+
+  <a href="/" class="back">← Back to Jaika</a>
+</div>
+</body>
+</html>

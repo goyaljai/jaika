@@ -1,0 +1,10 @@
+flask>=3.0
+requests>=2.31
+google-auth>=2.28
+google-auth-oauthlib>=1.2
+gunicorn>=21.2
+python-dotenv>=1.0
+# Office file conversion
+python-docx>=1.1
+openpyxl>=3.1
+python-pptx>=0.6

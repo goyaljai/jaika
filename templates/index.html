@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jaika</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #1c2333;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --accent: #58a6ff;
+  --accent-hover: #79c0ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+
+/* ── Login Screen ─────────────────────────────────────────── */
+#login-screen {
+  display: flex; flex-direction: row; align-items: center; justify-content: center;
+  height: 100vh; gap: 32px; padding: 24px 16px 24px 28px;
+}
+#login-screen .login-left {
+  flex: 0 0 340px; display: flex; flex-direction: column; justify-content: center;
+}
+#login-screen .login-right {
+  flex: 1; display: flex; align-items: center; justify-content: flex-end; height: 100%;
+}
+#login-screen h1 { font-size: 52px; font-weight: 700; margin-bottom: 8px; }
+#login-screen .tagline { color: var(--text2); font-size: 18px; line-height: 1.5; margin-bottom: 24px; }
+@media (max-width: 900px) {
+  #login-screen { flex-direction: column; gap: 20px; padding: 24px; }
+  #login-screen .login-left { max-width: 100%; align-items: center; text-align: center; }
+  #login-screen .login-right { max-width: 100%; }
+  #login-screen h1 { font-size: 36px; }
+}
+.cmd-box {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px;
+  color: var(--green); display: flex; align-items: center; gap: 12px; max-width: 600px; width: 100%;
+  word-break: break-all;
+}
+.cmd-box code { flex: 1; }
+.copy-btn {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 6px 12px; cursor: pointer; font-size: 13px; white-space: nowrap;
+}
+.copy-btn:hover { background: var(--border); }
+.login-status { color: var(--text2); font-size: 14px; min-height: 20px; }
+.login-status.waiting { color: var(--accent); }
+.login-status.error { color: var(--red); }
+.login-status.success { color: var(--green); }
+
+/* ── Public Docs Page ─────────────────────────────────────── */
+#public-page { display: none; height: 100vh; overflow: hidden; }
+.docs-shell { height: 100vh; display: flex; flex-direction: column; }
+.docs-topbar {
+  height: 52px; background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; flex-shrink: 0; gap: 12px;
+}
+.docs-brand { font-size: 15px; font-weight: 700; letter-spacing: -.3px; display:flex; align-items:center; gap:8px; }
+.docs-brand .brand-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block; }
+.docs-topbar-right { display: flex; align-items: center; gap: 10px; }
+.docs-user-pic { width: 26px; height: 26px; border-radius: 50%; }
+.docs-user-name { font-size: 13px; font-weight: 500; }
+.tier-pill {
+  font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.tier-pill.free { background: rgba(63,185,80,.15); color: #3fb950; border: 1px solid rgba(63,185,80,.25); }
+.tier-pill.pro  { background: rgba(212,160,23,.15); color: #d4a017; border: 1px solid rgba(212,160,23,.25); }
+.tier-pill.admin{ background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.25); }
+.docs-logout-btn {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text2); padding: 4px 12px; cursor: pointer; font-size: 12px;
+}
+.docs-logout-btn:hover { border-color: var(--red); color: var(--red); }
+.docs-body { flex: 1; display: flex; overflow: hidden; }
+.docs-sidenav {
+  width: 210px; flex-shrink: 0; overflow-y: auto;
+  border-right: 1px solid var(--border); padding: 16px 0 32px;
+  background: var(--surface);
+}
+.nav-grp-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text2); padding: 14px 16px 4px;
+}
+.nav-lnk {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 16px; font-size: 12.5px; color: var(--text2);
+  cursor: pointer; border-left: 2px solid transparent; transition: all .12s;
+  text-decoration: none;
+}
+.nav-lnk:hover { color: var(--text); background: rgba(255,255,255,.03); }
+.nav-lnk.active { color: var(--accent); border-left-color: var(--accent); background: rgba(88,166,255,.06); }
+.nav-lnk .nl-icon { font-size: 13px; width: 16px; text-align: center; }
+.docs-main { flex: 1; overflow-y: auto; padding: 28px 44px 80px; max-width: 900px; }
+.cred-card {
+  background: linear-gradient(135deg, rgba(88,166,255,.05), rgba(63,185,80,.03));
+  border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 32px;
+}
+.cred-card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text2); margin-bottom: 12px; }
+.cred-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.cred-lbl { font-size: 11px; color: var(--text2); width: 80px; flex-shrink: 0; }
+.cred-val {
+  flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 10px; font-family: 'SF Mono','Fira Code',monospace; font-size: 12px;
+  color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.cred-cp {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text2); padding: 4px 10px; cursor: pointer; font-size: 11px; white-space: nowrap; flex-shrink: 0;
+}
+.cred-cp:hover { color: var(--accent); border-color: var(--accent); }
+.docs-sec-hdr {
+  display: flex; align-items: center; gap: 10px;
+  margin: 36px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.docs-sec-icon { font-size: 17px; }
+.docs-sec-title { font-size: 16px; font-weight: 700; }
+.docs-sec-desc { font-size: 12px; color: var(--text2); margin: -8px 0 14px; }
+.ep-card {
+  border: 1px solid var(--border); border-radius: 9px; margin-bottom: 10px;
+  overflow: hidden; background: var(--surface); transition: border-color .15s;
+}
+.ep-card:hover { border-color: #3d444d; }
+.ep-card.is-pro  { border-left: 3px solid rgba(212,160,23,.5); }
+.ep-card.is-free { border-left: 3px solid rgba(63,185,80,.4); }
+.ep-hdr {
+  display: flex; align-items: center; gap: 9px; padding: 11px 14px;
+  cursor: pointer; user-select: none;
+}
+.ep-hdr:hover { background: rgba(255,255,255,.025); }
+.mth {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  font-family: 'SF Mono','Fira Code',monospace; letter-spacing: .2px; flex-shrink: 0;
+}
+.mth-post   { background: rgba(56,139,253,.2); color: #388bfd; }
+.mth-get    { background: rgba(63,185,80,.2);  color: #3fb950; }
+.mth-delete { background: rgba(248,81,73,.2);  color: #f85149; }
+.mth-put    { background: rgba(210,153,34,.2); color: #d29922; }
+.ep-path { font-family: 'SF Mono','Fira Code',monospace; font-size: 12.5px; color: var(--text); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ep-desc-inline { font-size: 12px; color: var(--text2); flex-shrink: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ep-tier {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: .3px; flex-shrink: 0;
+}
+.et-free  { background: rgba(63,185,80,.12);  color: #3fb950; }
+.et-pro   { background: rgba(212,160,23,.12); color: #d4a017; }
+.et-admin { background: rgba(139,148,158,.12); color: #8b949e; }
+.ep-chev { color: var(--text2); font-size: 11px; flex-shrink: 0; transition: transform .15s; }
+.ep-body { border-top: 1px solid var(--border); display: none; }
+.ep-body.open { display: block; }
+.ep-body-desc { padding: 10px 14px 4px; font-size: 13px; color: var(--text2); line-height: 1.5; }
+.code-wrap { position: relative; background: #0d1117; padding: 14px 16px; }
+.code-wrap pre {
+  font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; color: #79c0ff;
+  white-space: pre-wrap; word-break: break-all; line-height: 1.65; margin: 0; padding-right: 56px;
+}
+.code-wrap pre .cmd-str { color: #a5d6ff; }
+.cp-btn {
+  position: absolute; top: 8px; right: 8px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 5px; color: var(--text2);
+  padding: 3px 9px; cursor: pointer; font-size: 11px; white-space: nowrap;
+}
+.cp-btn:hover { color: var(--accent); border-color: var(--accent); }
+.pro-gate-bar {
+  padding: 11px 14px; background: rgba(212,160,23,.07);
+  border-top: 1px solid rgba(212,160,23,.18);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.pro-gate-bar p { font-size: 12px; color: var(--text2); }
+.pro-gate-bar a {
+  background: #d4a017; color: #000; padding: 5px 14px; border-radius: 6px;
+  font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap;
+}
+.response-box {
+  background: var(--surface2); border-top: 1px solid var(--border);
+  padding: 10px 16px;
+}
+.response-box .resp-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); margin-bottom: 6px; }
+.response-box pre {
+  font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; color: var(--green);
+  white-space: pre-wrap; word-break: break-all; line-height: 1.5; margin: 0;
+}
+.upgrade-banner {
+  background: linear-gradient(135deg, rgba(212,160,23,.1), rgba(212,160,23,.04));
+  border: 1px solid rgba(212,160,23,.25); border-radius: 10px;
+  padding: 20px 24px; margin: 28px 0; display: flex; align-items: center; gap: 20px;
+}
+.upgrade-banner .ub-icon { font-size: 28px; }
+.upgrade-banner h3 { font-size: 15px; font-weight: 700; color: #d4a017; margin-bottom: 3px; }
+.upgrade-banner p { font-size: 13px; color: var(--text2); line-height: 1.4; }
+.upgrade-banner a {
+  background: #d4a017; color: #000; padding: 8px 20px; border-radius: 7px;
+  font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; flex-shrink: 0;
+}
+
+/* ── App (admin chat UI) ──────────────────────────────────── */
+#app { display: none; height: 100vh; }
+.app-layout { display: flex; height: 100%; }
+
+.sidebar {
+  width: 260px; background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; flex-shrink: 0;
+}
+.sidebar-header {
+  padding: 16px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-header h2 { font-size: 18px; font-weight: 600; }
+.new-chat-btn {
+  padding: 6px 14px; background: var(--accent); color: #fff; border: none;
+  border-radius: var(--radius); cursor: pointer; font-size: 13px; font-weight: 500;
+}
+.new-chat-btn:hover { background: var(--accent-hover); }
+.session-list { flex: 1; overflow-y: auto; padding: 8px; }
+.session-item {
+  padding: 10px 12px; border-radius: var(--radius); cursor: pointer; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;
+}
+.session-item:hover { background: var(--surface2); }
+.session-item.active { background: var(--surface2); border: 1px solid var(--border); }
+.session-item .del-btn {
+  display: none; background: none; border: none; color: var(--red);
+  cursor: pointer; font-size: 14px; padding: 0 4px;
+}
+.session-item:hover .del-btn { display: inline; }
+
+/* Admin panel in sidebar */
+.admin-panel {
+  border-top: 1px solid var(--border); padding: 10px 12px;
+}
+.admin-panel h4 { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.admin-email-list { max-height: 120px; overflow-y: auto; }
+.admin-email-item {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; padding: 3px 0; color: var(--text2);
+}
+.admin-email-item button {
+  background: none; border: none; color: var(--red); cursor: pointer; font-size: 12px; padding: 0 2px; display: none;
+}
+.admin-email-item:hover button { display: inline; }
+.admin-add-row { display: flex; gap: 4px; margin-top: 6px; }
+.admin-add-row input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); padding: 4px 8px; font-size: 12px; outline: none;
+}
+.admin-add-row button {
+  background: var(--accent); color: #fff; border: none; border-radius: 4px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+
+/* Hosting guide button in sidebar */
+.hosting-guide-btn {
+  display: block; width: 100%; margin-top: 8px; padding: 6px 0; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 4px; color: var(--accent); cursor: pointer;
+  font-size: 12px; text-align: center; font-weight: 500;
+}
+.hosting-guide-btn:hover { background: var(--border); color: var(--accent-hover); }
+
+/* Hosting guide overlay */
+.hosting-guide-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center;
+}
+.hosting-guide-overlay.open { display: flex; }
+.hosting-guide-modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  width: 90%; max-width: 760px; max-height: 85vh; overflow-y: auto; padding: 28px 32px;
+  position: relative;
+}
+.hosting-guide-modal h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.hosting-guide-modal .hg-subtitle { color: var(--text2); font-size: 13px; margin-bottom: 20px; }
+.hosting-guide-modal h3 { font-size: 15px; color: var(--accent); margin: 20px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.hosting-guide-modal p { font-size: 13px; color: var(--text2); margin: 4px 0; line-height: 1.5; }
+.hosting-guide-modal pre {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; margin: 8px 0; overflow-x: auto; font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace; color: var(--green); white-space: pre-wrap; word-break: break-all;
+}
+.hosting-guide-modal .close-guide {
+  position: absolute; top: 14px; right: 18px; background: none; border: none;
+  color: var(--text2); font-size: 22px; cursor: pointer; padding: 4px;
+}
+.hosting-guide-modal .close-guide:hover { color: var(--red); }
+.hosting-guide-modal code {
+  font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
+  background: var(--bg); padding: 1px 5px; border-radius: 3px;
+}
+.hosting-guide-modal ol { padding-left: 20px; margin: 4px 0; }
+.hosting-guide-modal li { font-size: 13px; color: var(--text2); margin: 4px 0; line-height: 1.6; }
+
+.sidebar-footer {
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.sidebar-footer img { width: 32px; height: 32px; border-radius: 50%; }
+.sidebar-footer .user-info { flex: 1; min-width: 0; }
+.sidebar-footer .user-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-footer .user-email { font-size: 11px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.logout-btn { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 18px; padding: 4px; }
+.logout-btn:hover { color: var(--red); }
+
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat-header {
+  padding: 12px 20px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 15px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.message { max-width: 85%; padding: 12px 16px; border-radius: var(--radius); font-size: 14px; line-height: 1.6; word-wrap: break-word; }
+.message.user { align-self: flex-end; background: #1f3a5f; border: 1px solid #264a78; }
+.message.model { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); }
+.message pre { background: var(--bg); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+.message code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; }
+.message p { margin: 4px 0; }
+.message ul, .message ol { padding-left: 20px; margin: 4px 0; }
+
+.input-area { padding: 16px 20px; border-top: 1px solid var(--border); background: var(--surface); }
+.input-row { display: flex; gap: 8px; align-items: flex-end; }
+.input-row textarea {
+  flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 10px 14px; font-size: 14px; font-family: inherit;
+  resize: none; min-height: 42px; max-height: 200px; outline: none;
+}
+.input-row textarea:focus { border-color: var(--accent); }
+.input-row button { padding: 10px 18px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 14px; font-weight: 500; }
+.send-btn { background: var(--accent); color: #fff; }
+.send-btn:hover { background: var(--accent-hover); }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.upload-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.upload-btn:hover { background: var(--border); }
+.file-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; }
+.file-chip .remove { cursor: pointer; color: var(--red); font-weight: bold; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text2); gap: 8px; }
+.empty-state h3 { font-size: 20px; color: var(--text); }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 768px) {
+  .sidebar { position: fixed; left: -260px; z-index: 100; height: 100%; transition: left 0.2s; }
+  .sidebar.open { left: 0; }
+  .message { max-width: 95%; }
+  .menu-toggle { display: block !important; }
+}
+.menu-toggle { display: none; background: none; border: none; color: var(--text); font-size: 22px; cursor: pointer; padding: 4px; }
+
+.typing-dot { display: inline-block; width: 6px; height: 6px; background: var(--text2); border-radius: 50%; margin: 0 2px; animation: blink 1.4s infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+</style>
+</head>
+<body>
+
+<!-- Login Screen (unauthenticated) -->
+<div id="login-screen">
+  <div class="login-left">
+    <h1>Jaika</h1>
+    <p class="tagline">AI assistant powered by Google Gemini.<br>Free. Fast. Self-hosted.</p>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:10px">Run this in your terminal to sign in:</p>
+    <div class="cmd-box" id="cmd-box">
+      <code id="cmd-text">Loading...</code>
+      <button class="copy-btn" onclick="copyCmd()">Copy</button>
+    </div>
+    <div class="login-status waiting" id="login-status" style="margin-top:8px">Generating login link...</div>
+  </div>
+  <div class="login-right">
+    <video autoplay loop muted playsinline preload="auto" style="width:100%;height:100%;object-fit:contain;border-radius:16px;border:1px solid var(--border);background:#000" onended="this.play()">
+      <source src="/static/demo.mp4?v=3" type="video/mp4">
+    </video>
+  </div>
+</div>
+
+<!-- Public Docs Page -->
+<div id="public-page">
+  <div class="docs-shell">
+    <div class="docs-topbar">
+      <div class="docs-brand"><span class="brand-dot"></span>Jaika API</div>
+      <div class="docs-topbar-right" id="docs-topbar-right"></div>
+    </div>
+    <div class="docs-body">
+      <nav class="docs-sidenav" id="docs-sidenav"></nav>
+      <main class="docs-main" id="docs-main"></main>
+    </div>
+  </div>
+</div>
+
+<!-- App (admin chat UI) -->
+<div id="app">
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>Jaika</h2>
+        <button class="new-chat-btn" onclick="newChat()">+ New</button>
+      </div>
+      <div class="session-list" id="session-list"></div>
+      <div class="admin-panel" id="admin-panel" style="display:none">
+        <h4>Admin</h4>
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <button class="hosting-guide-btn" onclick="toggleVitals()" style="flex:1">Vitals</button>
+          <button class="hosting-guide-btn" onclick="toggleHostingGuide()" style="flex:1">Deploy</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <button class="hosting-guide-btn" onclick="toggleAdminEmails()" style="flex:1">Admins</button>
+          <button class="hosting-guide-btn" onclick="toggleProUsers()" style="flex:1">Pro Users</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <button class="hosting-guide-btn" onclick="toggleApiDocs()" style="flex:1">API Docs</button>
+          <button class="hosting-guide-btn" onclick="downloadAllData()" style="flex:1">Export</button>
+        </div>
+        <div id="admin-emails-section" style="display:none">
+          <div class="admin-email-list" id="admin-email-list"></div>
+          <div class="admin-add-row">
+            <input type="email" id="admin-email-input" placeholder="admin@example.com">
+            <button onclick="addAdminEmail()">Add</button>
+          </div>
+        </div>
+        <div id="pro-users-section" style="display:none">
+          <div class="admin-email-list" id="pro-email-list"></div>
+          <div class="admin-add-row">
+            <input type="email" id="pro-email-input" placeholder="pro@example.com">
+            <button onclick="addProEmail()">Add</button>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-footer" id="sidebar-footer"></div>
+    </aside>
+    <div class="main">
+      <div class="chat-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="menu-toggle" onclick="toggleSidebar()">&#9776;</button>
+          <span id="chat-title">New Chat</span>
+        </div>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="empty-state"><h3>Start a conversation</h3><p>Send a message or upload a file to begin.</p></div>
+      </div>
+      <div class="input-area">
+        <div class="file-preview" id="file-preview"></div>
+        <div class="input-row">
+          <button class="upload-btn" onclick="document.getElementById('file-input').click()">&#128206;</button>
+          <input type="file" id="file-input" multiple hidden onchange="handleFiles(this.files)">
+          <textarea id="prompt-input" placeholder="Send a message..." rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+            oninput="autoResize(this)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hosting Guide Overlay (admin only) -->
+<div class="hosting-guide-overlay" id="hosting-guide-overlay" onclick="if(event.target===this)toggleHostingGuide()">
+  <div class="hosting-guide-modal">
+    <button class="close-guide" onclick="toggleHostingGuide()">&times;</button>
+    <h2>Jaika v2 Hosting Guide</h2>
+    <p class="hg-subtitle">Deploy Jaika v2 on a fresh Ubuntu/Debian server. No Gemini CLI required — uses direct Google OAuth + cloudcode-pa API.</p>
+
+    <h3>1. Install system dependencies</h3>
+    <pre>sudo apt update
+sudo apt install -y python3 python3-pip python3-venv curl git \
+  pandoc texlive-latex-base texlive-latex-extra texlive-fonts-recommended
+
+python3 --version  # Should be 3.11+</pre>
+
+    <h3>2. Clone/copy Jaika v2</h3>
+    <pre>sudo mkdir -p /opt/jaika-v2
+sudo git clone https://github.com/goyaljai/jaika.git /opt/jaika-v2
+# Or copy: sudo cp -r /path/to/jaika-v2/* /opt/jaika-v2/</pre>
+
+    <h3>3. Python venv + dependencies</h3>
+    <pre>cd /opt/jaika-v2
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+# requirements.txt includes: flask, requests, google-auth, google-auth-oauthlib,
+# gunicorn, python-dotenv, python-docx, openpyxl, python-pptx</pre>
+    <p>For Android chroot: <code>unset ANDROID_DATA ANDROID_ROOT</code> before pip commands.</p>
+
+    <h3>4. Create data directories + config</h3>
+    <pre>mkdir -p /opt/jaika-v2/data/{users,skills}
+mkdir -p /opt/jaika-v2/static
+mkdir -p /var/log/server
+
+# Admin emails (goyaljai.y14@gmail.com is always hardcoded admin)
+echo '["your-admin@gmail.com"]' &gt; /opt/jaika-v2/data/admins.json
+echo '[]' &gt; /opt/jaika-v2/data/pro_users.json
+
+# Generate secret key
+SK=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+
+cat &gt; /opt/jaika-v2/.env &lt;&lt;EOF
+JAIKA_DATA_DIR=/opt/jaika-v2/data
+JAIKA_HOST=0.0.0.0
+JAIKA_PORT=5244
+SECRET_KEY=$SK
+EOF</pre>
+
+    <h3>5. Auth setup — Google OAuth credentials</h3>
+    <pre># You need a Google Cloud project with OAuth 2.0 credentials
+# (same ones used by Gemini CLI — find them in ~/.gemini/oauth_creds.json
+#  or create new ones in Google Cloud Console)
+#
+# Add to .env:
+echo "GOOGLE_CLIENT_ID=YOUR_CLIENT_ID" &gt;&gt; /opt/jaika-v2/.env
+echo "GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET" &gt;&gt; /opt/jaika-v2/.env
+
+# First user login: visit https://YOUR-DOMAIN/  and sign in with Google
+# The OAuth flow stores tokens per-user in data/users/&lt;user_id&gt;/token.json</pre>
+
+    <h3>6. Set up Supervisor</h3>
+    <pre>sudo apt install -y supervisor
+
+cat &gt; /etc/supervisor/conf.d/jaika.conf &lt;&lt;'EOF'
+[program:jaika]
+command=/opt/jaika-v2/.venv/bin/gunicorn \
+  --bind 0.0.0.0:5244 --workers 2 --threads 4 \
+  --timeout 180 --access-logfile - app:app
+directory=/opt/jaika-v2
+environment=HOME="/root",PATH="/opt/jaika-v2/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/server/jaika-out.log
+stderr_logfile=/var/log/server/jaika-err.log
+EOF
+
+supervisorctl reread &amp;&amp; supervisorctl update</pre>
+
+    <h3>7. Set up Tailscale (optional, for HTTPS)</h3>
+    <pre>curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up --ssh
+
+# Expose via HTTPS Funnel
+tailscale funnel --bg --https 443 http://localhost:5244
+tailscale serve status</pre>
+    <p>Your app will be at <code>https://YOUR-HOSTNAME.tail*.ts.net</code></p>
+
+    <h3>8. Cron — cleanup old files</h3>
+    <pre>crontab -e
+# Add:
+0 3 * * * find /opt/jaika-v2/data/users/*/uploads/ /opt/jaika-v2/data/users/*/outputs/ -type f -mmin +120 -delete 2&gt;/dev/null</pre>
+
+    <h3>9. Verify</h3>
+    <pre>supervisorctl status
+
+# Test health
+curl -s http://localhost:5244/ | head -1
+
+# Test API (replace with real user_id after first login)
+curl -s http://localhost:5244/api/docs | python3 -m json.tool | head -20</pre>
+
+    <h3>10. Quick reference</h3>
+    <pre># Restart
+supervisorctl restart jaika
+
+# Logs
+tail -f /var/log/server/jaika-out.log
+tail -f /var/log/server/jaika-err.log
+
+# Update
+cd /opt/jaika-v2 &amp;&amp; git pull
+source .venv/bin/activate &amp;&amp; pip install -r requirements.txt
+supervisorctl restart jaika
+
+# Multiple users: fully isolated — each user gets their own:
+# data/users/&lt;user_id&gt;/{sessions/, uploads/, outputs/, memory.json, token.json}
+# Rate limit: each user uses their own Google quota (60 req/min free tier)</pre>
+  </div>
+</div>
+
+<!-- API Docs Overlay (admin) -->
+<div class="hosting-guide-overlay" id="apidocs-overlay" onclick="if(event.target===this)toggleApiDocs()">
+  <div class="hosting-guide-modal">
+    <button class="close-guide" onclick="toggleApiDocs()">&times;</button>
+    <h2>Jaika API Reference</h2>
+    <p class="hg-subtitle">Ready-to-use curl commands with your credentials.</p>
+    <div id="apidocs-content"></div>
+  </div>
+</div>
+
+<!-- Vitals Overlay (admin only) -->
+<div class="hosting-guide-overlay" id="vitals-overlay" onclick="if(event.target===this)toggleVitals()">
+  <div class="hosting-guide-modal">
+    <button class="close-guide" onclick="toggleVitals()">&times;</button>
+    <h2>Server Vitals</h2>
+    <p class="hg-subtitle">Live server status and resource usage.</p>
+    <div id="vitals-content" style="color:var(--text2);font-size:13px">Loading...</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+try {
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      highlight: function(code, lang) {
+        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) return hljs.highlight(code, {language: lang}).value;
+        if (typeof hljs !== 'undefined') return hljs.highlightAuto(code).value;
+        return code;
+      },
+      breaks: true,
+    });
+  }
+} catch(e) {}
+
+var currentSession = null;
+var uploadedFiles = [];
+var isStreaming = false;
+var loginToken = null;
+var pollInterval = null;
+
+function getUser() { return localStorage.getItem('jaika_uid'); }
+function getUserData() { try { return JSON.parse(localStorage.getItem('jaika_user') || '{}'); } catch(e) { return {}; } }
+function escHtml(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function renderMd(t) { try { if (typeof marked !== 'undefined') return marked.parse(t); } catch(e) {} return t.replace(/</g,'&lt;').replace(/\n/g,'<br>'); }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px'; }
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+
+function authHeaders(extra) {
+  var uid = getUser();
+  var h = Object.assign({}, extra || {});
+  if (uid) h['X-User-Id'] = uid;
+  return h;
+}
+function apiFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = authHeaders(opts.headers);
+  return fetch(url, opts);
+}
+function copyCmd() {
+  var text = document.getElementById('cmd-text').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+
+// ── Auth ───────────────────────────────────────────────────
+async function initLogin() {
+  // Check URL param
+  var params = new URLSearchParams(window.location.search);
+  var uid = params.get('u');
+  if (uid) {
+    localStorage.setItem('jaika_uid', uid);
+    window.history.replaceState({}, '', '/');
+  }
+
+  uid = getUser();
+  if (uid) {
+    try {
+      var r = await apiFetch('/auth/status');
+      var d = await r.json();
+      if (d.authenticated) {
+        localStorage.setItem('jaika_user', JSON.stringify(d));
+        if (d.is_admin) {
+          try { showApp(d); } catch(e2) { console.error('showApp error:', e2); }
+        } else {
+          try { showPublicPage(d); } catch(e2) { console.error('showPublic error:', e2); }
+        }
+        return;
+      }
+    } catch(e) { console.error('auth status error:', e); }
+    localStorage.removeItem('jaika_uid');
+  }
+  startLoginFlow();
+}
+
+async function startLoginFlow() {
+  var cmd = 'curl -sL ' + window.location.origin + '/login | bash';
+  document.getElementById('cmd-text').textContent = cmd;
+  document.getElementById('login-status').textContent = 'Run the command above, then sign in with Google.';
+  document.getElementById('login-status').className = 'login-status waiting';
+}
+
+async function pollLogin() {
+  if (!loginToken) return;
+  try {
+    var r = await fetch('/auth/poll?token=' + loginToken);
+    var d = await r.json();
+    if (d.status === 'complete') {
+      clearInterval(pollInterval);
+      localStorage.setItem('jaika_uid', d.user_id);
+      document.getElementById('login-status').textContent = 'Signed in as ' + d.email + '!';
+      document.getElementById('login-status').className = 'login-status success';
+      setTimeout(function() { initLogin(); }, 500);
+    }
+  } catch(e) {}
+}
+
+function showPublicPage(user) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('public-page').style.display = 'block';
+
+  var S = window.location.origin;
+  var U = user.user_id;
+  var isPro = user.is_pro || user.is_admin;
+
+  // ── Top bar
+  var pic = user.picture || '';
+  var imgTag = pic ? '<img class="docs-user-pic" src="' + escHtml(pic) + '" alt="">' : '';
+  var tierLabel = user.is_admin ? 'admin' : (user.is_pro ? 'pro' : 'free');
+  document.getElementById('docs-topbar-right').innerHTML =
+    imgTag +
+    '<span class="docs-user-name">' + escHtml(user.name || user.email || 'User') + '</span>' +
+    '<span class="tier-pill ' + tierLabel + '">' + tierLabel.toUpperCase() + '</span>' +
+    '<button class="docs-logout-btn" onclick="doLogout()">Logout</button>';
+
+  // ── Helpers
+  function esc(s) { return escHtml(String(s || '')); }
+
+  function cpBtn(text) {
+    return '<button class="cp-btn" onclick="(function(b){var t=b.parentElement.querySelector(\'pre\').textContent;navigator.clipboard.writeText(t).then(function(){b.textContent=\'Copied!\';setTimeout(function(){b.textContent=\'Copy\'},1400)});})(this)">Copy</button>';
+  }
+
+  function codeBlock(code) {
+    return '<div class="code-wrap"><pre>' + esc(code) + '</pre>' + cpBtn() + '</div>';
+  }
+
+  function responseBlock(json) {
+    return '<div class="response-box"><div class="resp-label">Response</div><pre>' + esc(json) + '</pre></div>';
+  }
+
+  function ep(method, path, desc, tier, bodyHtml, isPro_gate) {
+    var mthClass = 'mth-' + method.toLowerCase();
+    var tierClass = tier === 'PRO' ? 'et-pro' : (tier === 'ADMIN' ? 'et-admin' : 'et-free');
+    var cardClass = tier === 'PRO' ? 'is-pro' : 'is-free';
+    var id = 'ep-' + Math.random().toString(36).slice(2,7);
+    return '<div class="ep-card ' + cardClass + '" id="' + id + '">' +
+      '<div class="ep-hdr" onclick="(function(el){var b=el.querySelector(\'.ep-body\');var c=el.querySelector(\'.ep-chev\');b.classList.toggle(\'open\');c.textContent=b.classList.contains(\'open\')?\'▲\':\'▼\';})(this.closest(\'.ep-card\'))">' +
+        '<span class="mth ' + mthClass + '">' + method + '</span>' +
+        '<span class="ep-path">' + esc(path) + '</span>' +
+        '<span class="ep-desc-inline">' + esc(desc) + '</span>' +
+        '<span class="ep-tier ' + tierClass + '">' + tier + '</span>' +
+        '<span class="ep-chev">▼</span>' +
+      '</div>' +
+      '<div class="ep-body">' +
+        (bodyHtml || '') +
+        (tier === 'PRO' && !isPro ? '<div class="pro-gate-bar"><p>🔒 This feature requires Jaika Pro</p><a href="/pro">Upgrade — ₹199 forever</a></div>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  function sec(id, icon, title, desc) {
+    return '<div class="docs-sec-hdr" id="sec-' + id + '"><span class="docs-sec-icon">' + icon + '</span><span class="docs-sec-title">' + title + '</span></div>' +
+      (desc ? '<p class="docs-sec-desc">' + esc(desc) + '</p>' : '');
+  }
+
+  var H = 'X-User-Id: ' + U;
+  var C = 'Content-Type: application/json';
+
+  // ── Build sections
+  var html = '';
+
+  // Cred card
+  html += '<div class="cred-card">' +
+    '<div class="cred-card-title">Your Credentials — pre-filled in all examples below</div>' +
+    '<div class="cred-row"><span class="cred-lbl">Server</span><span class="cred-val">' + esc(S) + '</span><button class="cred-cp" onclick="navigator.clipboard.writeText(\'' + esc(S) + '\').then(b=>this.textContent=\'Copied!\')">Copy</button></div>' +
+    '<div class="cred-row"><span class="cred-lbl">User ID</span><span class="cred-val">' + esc(U) + '</span><button class="cred-cp" onclick="navigator.clipboard.writeText(\'' + esc(U) + '\').then(b=>this.textContent=\'Copied!\')">Copy</button></div>' +
+    '<div class="cred-row"><span class="cred-lbl">Header</span><span class="cred-val">X-User-Id: ' + esc(U) + '</span><button class="cred-cp" onclick="navigator.clipboard.writeText(\'X-User-Id: ' + esc(U) + '\').then(b=>this.textContent=\'Copied!\')">Copy</button></div>' +
+  '</div>';
+
+  // ── CHAT
+  html += sec('chat', '💬', 'Chat & Prompt', 'Send messages, attach files, stream responses. Core of the API.');
+  html += ep('POST', '/api/prompt', 'Send a message', 'FREE',
+    '<div class="ep-body-desc">Stream or non-stream. Supports file attachments, session continuity, thinking mode (Pro), and web grounding (Pro).</div>' +
+    codeBlock('curl -X POST ' + S + '/api/prompt \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt": "Hello!", "stream": false}\'') +
+    responseBlock('{"type":"text","text":"Hello! How can I help?","session_id":"abc123"}'));
+
+  html += ep('POST', '/api/prompt (stream)', 'Streaming via SSE', 'FREE',
+    '<div class="ep-body-desc">Set <code>stream: true</code> to receive Server-Sent Events. Save the returned <code>session_id</code> to continue the conversation.</div>' +
+    codeBlock('curl -N -X POST ' + S + '/api/prompt \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt": "Explain quantum computing", "stream": true}\'') +
+    responseBlock('data: {"model":"gemini-2.5-flash","type":"start"}\ndata: {"text":"Quantum computing uses..."}\ndata: {"text":" qubits instead of bits"}\ndata: {"type":"done"}'));
+
+  html += ep('POST', '/api/prompt (thinking)', 'Extended reasoning mode', 'PRO',
+    '<div class="ep-body-desc">Uses Gemini 2.5 Pro with deep reasoning. Best for math, logic, and complex analysis.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/prompt \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt": "Prove that sqrt(2) is irrational", "thinking": true}\''));
+
+  html += ep('POST', '/api/prompt (grounding)', 'Google Search grounding', 'PRO',
+    '<div class="ep-body-desc">Connects to live search for up-to-date answers. Response includes <code>grounding</code> metadata with sources.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/prompt \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt": "Latest AI news today", "grounding": true}\''));
+
+  html += ep('POST', '/api/prompt (with file)', 'Attach uploaded files', 'FREE',
+    '<div class="ep-body-desc">Upload a file first, then pass its <code>file_id</code> in the prompt. Supports PDF, DOCX, images, audio, code.</div>' +
+    codeBlock('# Step 1: upload\nFID=$(curl -sX POST ' + S + '/api/upload \\\n  -H "' + H + '" -F "file=@report.pdf" \\\n  | python3 -c "import sys,json;print(json.load(sys.stdin)[\'file_id\'])")\n\n# Step 2: use it\ncurl -X POST ' + S + '/api/prompt \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt":"Summarise this","file_ids":["\'$FID\'"],"stream":false}\''));
+
+  // Python example
+  html += ep('POST', '/api/prompt (Python)', 'Python example', 'FREE',
+    codeBlock('import requests\n\nr = requests.post(\n    "' + S + '/api/prompt",\n    headers={"X-User-Id": "' + U + '", "Content-Type": "application/json"},\n    json={"prompt": "Hello!", "stream": False}\n)\ndata = r.json()\nprint(data["text"])\nprint("session_id:", data["session_id"])'));
+
+  // ── VOICE
+  html += sec('voice', '🎙️', 'Voice & Audio', 'Speech-to-text, text-to-speech, and full voice conversation — Pro only.');
+
+  if (!isPro) {
+    html += '<div class="upgrade-banner"><div class="ub-icon">🎙️</div><div><h3>Voice features require Pro</h3><p>STT, TTS, and Voice Prompt are available on the Pro plan. One-time ₹199 — no subscriptions.</p></div><a href="/pro">Upgrade to Pro</a></div>';
+  }
+
+  html += ep('POST', '/api/stt', 'Speech-to-text', 'PRO',
+    '<div class="ep-body-desc">Upload an audio file (mp3, wav, webm, ogg, m4a, flac, aac, aiff). Returns the transcript.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/stt \\\n  -H "' + H + '" \\\n  -F "file=@recording.wav"') +
+    responseBlock('{"text":"The quick brown fox jumps over the lazy dog"}'));
+
+  html += ep('POST', '/api/voice-prompt', 'Voice → AI → Text', 'PRO',
+    '<div class="ep-body-desc">One shot: audio in, AI response out. Transcribes your audio and sends it to Gemini. Returns both the transcript and the AI reply.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/voice-prompt \\\n  -H "' + H + '" \\\n  -F "file=@question.mp3"') +
+    responseBlock('{"transcript":"What is the capital of Japan?","text":"Tokyo is the capital...","session_id":"xyz"}'));
+
+  html += ep('POST', '/api/tts', 'Text-to-speech', 'PRO',
+    '<div class="ep-body-desc">Returns audio/wav binary. Voices: Aoede (default), Charon, Fenrir, Kore, Puck.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/tts \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"text":"Hello world!","voice":"Aoede"}\' \\\n  -o speech.wav'));
+
+  // ── FILES
+  html += sec('files', '📎', 'File Upload', 'Upload files to use in prompts. Auto-deleted after 1 hour.');
+  html += ep('POST', '/api/upload', 'Upload a file', 'FREE',
+    '<div class="ep-body-desc">Supports PDF, DOCX, XLSX, PPTX, images, audio, video, code, and text files. Storage: Free = 50MB, Pro = 500MB.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/upload \\\n  -H "' + H + '" \\\n  -F "file=@document.pdf"') +
+    responseBlock('{"file_id":"f_abc123","name":"document.pdf","mime_type":"application/pdf","size":204800}'));
+
+  html += ep('GET', '/api/files', 'List uploaded files', 'FREE',
+    codeBlock('curl ' + S + '/api/files -H "' + H + '"'));
+
+  html += ep('GET', '/api/files/:id/download', 'Download a file', 'FREE',
+    codeBlock('curl ' + S + '/api/files/FILE_ID/download \\\n  -H "' + H + '" -o output.pdf'));
+
+  html += ep('DELETE', '/api/files/:id', 'Delete a file', 'FREE',
+    codeBlock('curl -X DELETE ' + S + '/api/files/FILE_ID \\\n  -H "' + H + '"'));
+
+  // ── GENERATE
+  html += sec('generate', '✨', 'Generate Files & Images', 'Generate HTML pages, SVGs, images, videos, CSVs, Python scripts with AI. Free: 5/day.');
+  html += ep('POST', '/api/generate/file', 'Generate HTML/SVG/CSV/JSON/Python', 'FREE',
+    '<div class="ep-body-desc">Types: <code>html</code>, <code>svg</code>, <code>csv</code>, <code>json</code>, <code>py</code>, <code>video</code>. Free = 5/day, Pro = unlimited.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/generate/file \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt":"landing page for coffee shop","type":"html"}\'') +
+    responseBlock('{"file_url":"/api/download/' + U + '/generated_abc.html","mime_type":"text/html","size":8192,"remaining":"4"}\n\n# file_url is browser-ready — no auth header needed:\n# curl ' + S + '/api/download/' + U + '/generated_abc.html -o page.html\n# Or open directly in browser'));
+
+  html += ep('POST', '/api/generate/image', 'Generate an image', 'FREE',
+    '<div class="ep-body-desc">Uses Gemini native image generation. Falls back to SVG if unavailable.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/generate/image \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt":"futuristic city skyline at sunset"}\''));
+
+  html += ep('POST', '/api/pdf', 'Generate PDF from Markdown', 'PRO',
+    '<div class="ep-body-desc">Convert Markdown to a formatted PDF. Pro/Admin only.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/pdf \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"markdown":"# My Report\\n\\n## Summary\\nContent here..."}\'') +
+    responseBlock('{"path":"/api/download/' + U + '/output.pdf","filename":"output.pdf"}\n\n# Open in browser or curl:\n# curl ' + S + '/api/download/' + U + '/output.pdf -o report.pdf'));
+
+  // ── MEMORY
+  html += sec('memory', '🧠', 'Persistent Memory', 'Key facts automatically injected into every chat as system context.');
+  html += ep('GET', '/api/memory', 'List facts', 'FREE',
+    codeBlock('curl ' + S + '/api/memory -H "' + H + '"') +
+    responseBlock('{"facts":["My name is Jai","I prefer Python 3.12"]}'));
+
+  html += ep('POST', '/api/memory', 'Add a fact', 'FREE',
+    codeBlock('curl -X POST ' + S + '/api/memory \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"fact":"I prefer concise answers"}\''));
+
+  html += ep('DELETE', '/api/memory/:index', 'Delete a fact', 'FREE',
+    codeBlock('curl -X DELETE ' + S + '/api/memory/0 \\\n  -H "' + H + '"'));
+
+  // ── WEB FETCH
+  html += sec('fetch', '🌐', 'Web Fetch', 'Fetch any URL. Raw fetch is free. AI analysis of the content is Pro.');
+  html += ep('POST', '/api/fetch', 'Fetch a URL (raw)', 'FREE',
+    '<div class="ep-body-desc">Returns raw HTML/text from the URL. No AI call — just fetches.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/fetch \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"url":"https://example.com"}\''));
+
+  html += ep('POST', '/api/fetch (with AI)', 'Fetch + AI analysis', 'PRO',
+    '<div class="ep-body-desc">Fetches the URL and sends its content to Gemini with your prompt. Returns AI analysis + session_id.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/fetch \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"url":"https://techcrunch.com","prompt":"Summarise the top stories"}\'') +
+    responseBlock('{"text":"Top stories: 1. OpenAI announces...","url":"https://techcrunch.com","session_id":"s_xyz"}'));
+
+  // ── SESSIONS
+  html += sec('sessions', '💾', 'Sessions', 'Conversation history. Free = 10 sessions, Pro = 25, Admin = unlimited.');
+  html += ep('GET', '/api/sessions', 'List sessions', 'FREE',
+    codeBlock('curl ' + S + '/api/sessions -H "' + H + '"'));
+
+  html += ep('POST', '/api/sessions', 'Create a session', 'FREE',
+    codeBlock('curl -X POST ' + S + '/api/sessions \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"title":"My Project"}\'') +
+    responseBlock('{"id":"s_abc123","title":"My Project","created_at":"2026-04-07T..."}'));
+
+  html += ep('GET', '/api/sessions/:id', 'Get session + history', 'FREE',
+    '<div class="ep-body-desc">Returns the full message history. Use <code>session_id</code> from any <code>/api/prompt</code> response.</div>' +
+    codeBlock('curl ' + S + '/api/sessions/SESSION_ID -H "' + H + '"') +
+    responseBlock('{"id":"s_abc","title":"My Chat","messages":[{"role":"user","text":"Hello"},{"role":"model","text":"Hi!"}]}'));
+
+  html += ep('PUT', '/api/sessions/:id', 'Rename session', 'FREE',
+    codeBlock('curl -X PUT ' + S + '/api/sessions/SESSION_ID \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"title":"New Name"}\''));
+
+  html += ep('DELETE', '/api/sessions/:id', 'Delete session', 'FREE',
+    codeBlock('curl -X DELETE ' + S + '/api/sessions/SESSION_ID -H "' + H + '"'));
+
+  html += ep('DELETE', '/api/sessions/:id/messages', 'Clear messages', 'FREE',
+    codeBlock('curl -X DELETE ' + S + '/api/sessions/SESSION_ID/messages -H "' + H + '"'));
+
+  // ── SKILLS
+  html += sec('skills', '⚡', 'Skills', 'Named system prompt modules. Any skill can be activated to change how Jaika responds.');
+  html += ep('GET', '/api/skills', 'List all skills', 'FREE',
+    codeBlock('curl ' + S + '/api/skills -H "' + H + '"'));
+
+  html += ep('GET', '/api/skills/:name', 'Get skill content', 'FREE',
+    codeBlock('curl ' + S + '/api/skills/coding -H "' + H + '"') +
+    responseBlock('{"name":"coding","content":"You are an expert programmer..."}'));
+
+  html += ep('POST', '/api/skills/upload', 'Create a skill', 'PRO',
+    '<div class="ep-body-desc">Upload a skill by JSON or file. Pro/Admin only.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/skills/upload \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"name":"coding","content":"You are an expert programmer. Always use best practices."}\''));
+
+  html += ep('DELETE', '/api/skills/:name', 'Delete a skill', 'PRO',
+    codeBlock('curl -X DELETE ' + S + '/api/skills/coding -H "' + H + '"'));
+
+  // ── COMPAT ROUTERS
+  html += sec('compat', '🔌', 'Drop-in Compatibility', 'Use existing OpenAI, Anthropic, or Gemini SDKs — just change the base URL.');
+
+  html += ep('POST', '/v1/chat/completions', 'OpenAI-compatible', 'FREE',
+    '<div class="ep-body-desc">Auth: <code>Authorization: Bearer YOUR_UID</code>. GPT model names are mapped to Gemini. Supports streaming.</div>' +
+    codeBlock('# curl\ncurl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"Hello"}]}\'\n\n# Python (drop-in replacement)\nimport openai\nclient = openai.OpenAI(base_url="' + S + '/v1", api_key="' + U + '")\nresp = client.chat.completions.create(\n    model="gemini-2.5-pro",\n    messages=[{"role":"user","content":"Hello"}]\n)\nprint(resp.choices[0].message.content)'));
+
+  html += ep('POST', '/v1/messages', 'Anthropic-compatible', 'FREE',
+    '<div class="ep-body-desc">Auth: <code>x-api-key: YOUR_UID</code>. Claude model names → Gemini. claude-opus-4 → gemini-2.5-pro.</div>' +
+    codeBlock('import anthropic\nclient = anthropic.Anthropic(base_url="' + S + '", api_key="' + U + '")\nmsg = client.messages.create(\n    model="claude-opus-4", max_tokens=1024,\n    messages=[{"role":"user","content":"Hello"}]\n)\nprint(msg.content[0].text)'));
+
+  html += ep('POST', '/v1beta/models/:model:generateContent', 'Gemini-native', 'FREE',
+    '<div class="ep-body-desc">Auth: <code>?key=YOUR_UID</code> query param. Identical to Google Gemini API format.</div>' +
+    codeBlock('curl -X POST "' + S + '/v1beta/models/gemini-2.5-flash:generateContent?key=' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"contents":[{"role":"user","parts":[{"text":"Hello"}]}]}\''));
+
+  // ── USER
+  html += sec('user', '👤', 'User & Auth', '');
+  html += ep('GET', '/api/me', 'Current user info', 'FREE',
+    codeBlock('curl ' + S + '/api/me -H "' + H + '"') +
+    responseBlock('{\n  "user_id": "' + U + '",\n  "email": "you@gmail.com",\n  "is_admin": false,\n  "is_pro": ' + isPro + ',\n  "tier_name": "Jaika (Powered by Gemini)",\n  "storage_used_bytes": 1048576,\n  "storage_cap_bytes": 52428800,\n  "session_limit": 10,\n  "file_gen_limit": 5\n}'));
+
+  html += ep('GET', '/auth/status', 'Check auth status', 'FREE',
+    codeBlock('curl ' + S + '/auth/status -H "' + H + '"'));
+
+  // ── Set content
+  document.getElementById('docs-main').innerHTML = html;
+
+  // ── Build sidenav
+  var sections = [
+    {id:'chat',    icon:'💬', label:'Chat & Prompt'},
+    {id:'voice',   icon:'🎙️', label:'Voice & Audio'},
+    {id:'files',   icon:'📎', label:'File Upload'},
+    {id:'generate',icon:'✨', label:'Generate'},
+    {id:'memory',  icon:'🧠', label:'Memory'},
+    {id:'fetch',   icon:'🌐', label:'Web Fetch'},
+    {id:'sessions',icon:'💾', label:'Sessions'},
+    {id:'skills',  icon:'⚡', label:'Skills'},
+    {id:'compat',  icon:'🔌', label:'Compat SDKs'},
+    {id:'user',    icon:'👤', label:'User & Auth'},
+  ];
+  var navHtml = '<div class="nav-grp-title">Reference</div>';
+  sections.forEach(function(s) {
+    navHtml += '<a class="nav-lnk" onclick="(function(){document.getElementById(\'sec-' + s.id + '\').scrollIntoView({behavior:\'smooth\'});document.querySelectorAll(\'.nav-lnk\').forEach(function(l){l.classList.remove(\'active\')});this.classList.add(\'active\')}).call(this)">' +
+      '<span class="nl-icon">' + s.icon + '</span>' + s.label + '</a>';
+  });
+  document.getElementById('docs-sidenav').innerHTML = navHtml;
+}
+
+// ── Admin App ──────────────────────────────────────────────
+function showApp(user) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('public-page').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  renderUser(user);
+  loadSessions();
+  document.getElementById('admin-panel').style.display = 'block';
+  loadAdminEmails();
+}
+
+function renderUser(user) {
+  var footer = document.getElementById('sidebar-footer');
+  var pic = user.picture || '';
+  var initial = (user.name || 'U').charAt(0);
+  var imgTag = pic
+    ? '<img src="' + escHtml(pic) + '" alt="" style="width:32px;height:32px;border-radius:50%">'
+    : '<div style="width:32px;height:32px;border-radius:50%;background:#30363d;display:flex;align-items:center;justify-content:center;color:#8b949e;font-size:16px">' + initial + '</div>';
+  footer.innerHTML = imgTag +
+    '<div class="user-info">' +
+      '<div class="user-name">' + escHtml(user.name || 'User') + '</div>' +
+      '<div class="user-email">' + escHtml(user.email || '') + '</div>' +
+    '</div>' +
+    '<button class="logout-btn" onclick="doLogout()" title="Logout">&#x2190;</button>';
+}
+
+function doLogout() {
+  var uid = getUser();
+  localStorage.removeItem('jaika_uid');
+  localStorage.removeItem('jaika_user');
+  window.location.href = '/auth/logout?uid=' + (uid || '');
+}
+
+// ── Admin Emails ───────────────────────────────────────────
+async function loadAdminEmails() {
+  try {
+    var r = await apiFetch('/api/admin/emails');
+    var emails = await r.json();
+    var list = document.getElementById('admin-email-list');
+    list.innerHTML = emails.map(function(e) {
+      return '<div class="admin-email-item"><span>' + escHtml(e) + '</span><button onclick="removeAdminEmail(\'' + escHtml(e) + '\')">&times;</button></div>';
+    }).join('');
+  } catch(e) {}
+}
+
+async function addAdminEmail() {
+  var input = document.getElementById('admin-email-input');
+  var email = input.value.trim();
+  if (!email) return;
+  await apiFetch('/api/admin/emails', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: email})
+  });
+  input.value = '';
+  loadAdminEmails();
+}
+
+async function removeAdminEmail(email) {
+  await apiFetch('/api/admin/emails', {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: email})
+  });
+  loadAdminEmails();
+}
+
+// ── Pro Users ─────────────────────────────────────────────
+function toggleProUsers() {
+  var el = document.getElementById('pro-users-section');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (el.style.display === 'block') loadProEmails();
+}
+
+async function loadProEmails() {
+  try {
+    var r = await apiFetch('/api/admin/pro');
+    var emails = await r.json();
+    var list = document.getElementById('pro-email-list');
+    list.innerHTML = emails.map(function(e) {
+      return '<div class="admin-email-item"><span>' + escHtml(e) + '</span><button onclick="removeProEmail(\'' + escHtml(e) + '\')">&times;</button></div>';
+    }).join('');
+  } catch(e) {}
+}
+
+async function addProEmail() {
+  var input = document.getElementById('pro-email-input');
+  var email = input.value.trim();
+  if (!email) return;
+  await apiFetch('/api/admin/pro', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: email})
+  });
+  input.value = '';
+  loadProEmails();
+}
+
+async function removeProEmail(email) {
+  await apiFetch('/api/admin/pro', {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: email})
+  });
+  loadProEmails();
+}
+
+// ── Admin Panels ──────────────────────────────────────────
+function toggleHostingGuide() {
+  document.getElementById('hosting-guide-overlay').classList.toggle('open');
+}
+
+function toggleApiDocs() {
+  var overlay = document.getElementById('apidocs-overlay');
+  overlay.classList.toggle('open');
+  if (overlay.classList.contains('open')) renderApiDocs();
+}
+
+function copyCode(btn) {
+  var pre = btn.parentElement.querySelector('pre');
+  navigator.clipboard.writeText(pre.textContent).then(function() {
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+function renderApiDocs() {
+  var S = window.location.origin;
+  var U = getUser() || 'YOUR_USER_ID';
+  var H = '-H "X-User-Id: ' + U + '"';
+  var isAdmin = getUserData().is_admin === true;
+  var el = document.getElementById('apidocs-content');
+
+  function block(title, curl) {
+    return '<h3 style="font-size:14px;color:var(--accent);margin:16px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px">' + title + '</h3>' +
+      '<div style="position:relative"><pre style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--green);white-space:pre-wrap;word-break:break-all;margin:4px 0">' + escHtml(curl) + '</pre>' +
+      '<button onclick="copyCode(this)" style="position:absolute;top:6px;right:8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text2);padding:2px 8px;cursor:pointer;font-size:11px">Copy</button></div>';
+  }
+
+  var C = '-H "Content-Type: application/json"';
+
+  function sec(title, color) {
+    return '<h3 style="font-size:13px;font-weight:700;color:' + (color||'var(--accent)') + ';margin:22px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px;text-transform:uppercase;letter-spacing:.5px">' + title + '</h3>';
+  }
+
+  // ── Chat ──
+  var html = sec('Chat & Prompt', 'var(--accent)') +
+    block('Send a prompt', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Hello!", "stream": false}\'') +
+    block('Streaming (SSE)', 'curl -N -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Explain AI", "stream": true}\'') +
+    block('Thinking mode (extended reasoning)', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Solve this step by step...", "thinking": true, "thinking_budget": 8192}\'') +
+    block('Web grounding (Google Search)', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "What happened in AI news today?", "grounding": true}\'') +
+    block('Structured JSON output', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "List 3 fruits as JSON array", "response_format": "json"}\'') +
+    block('With file attachments', 'FILE_ID=$(curl -sX POST ' + S + '/api/upload ' + H + ' \\\n  -F "file=@doc.pdf" | python3 -c "import sys,json; print(json.load(sys.stdin)[\'file_id\'])")\n\ncurl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Summarise this document", "file_ids": ["\'$FILE_ID\'"]}\'') +
+    block('Continue a session', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Follow-up question", "session_id": "SESSION_ID"}\'');
+
+  // ── Voice & Audio ──
+  html += sec('Voice & Audio', 'var(--accent)') +
+    block('Speech-to-text (STT)', 'curl -X POST ' + S + '/api/stt \\\n  ' + H + ' \\\n  -F "file=@recording.wav"\n\n# Supports: mp3, wav, webm, ogg, m4a, flac, aac, aiff') +
+    block('Voice prompt (audio → AI → text)', 'curl -X POST ' + S + '/api/voice-prompt \\\n  ' + H + ' \\\n  -F "file=@question.mp3"\n\n# Returns: {"transcript": "...", "text": "...", "session_id": "..."}') +
+    block('Voice prompt (streaming)', 'curl -N -X POST ' + S + '/api/voice-prompt \\\n  ' + H + ' \\\n  -F "file=@question.mp3" -F "stream=true"\n\n# First SSE event: {"type":"transcript","text":"..."}\n# Then text chunks, finally {"type":"done"}') +
+    block('Text-to-speech (TTS)', 'curl -X POST ' + S + '/api/tts \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"text": "Hello world!", "voice": "Aoede"}\' \\\n  -o speech.wav\n\n# Voices: Aoede, Charon, Fenrir, Kore, Puck');
+
+  // ── Web Fetch ──
+  html += sec('Web Fetch', 'var(--accent)') +
+    block('Fetch & analyse a URL', 'curl -X POST ' + S + '/api/fetch \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"url": "https://example.com", "prompt": "Summarise this page"}\'') +
+    block('Fetch raw page content', 'curl -X POST ' + S + '/api/fetch \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"url": "https://example.com"}\'\n\n# Without prompt: returns raw HTML/text (no AI call)');
+
+  // ── Memory ──
+  html += sec('Persistent Memory', 'var(--accent)') +
+    block('List memory facts', 'curl ' + S + '/api/memory ' + H) +
+    block('Add a memory fact', 'curl -X POST ' + S + '/api/memory \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"fact": "I prefer concise answers"}\'\n\n# Facts are injected into every chat as system context') +
+    block('Delete a fact (0-based index)', 'curl -X DELETE ' + S + '/api/memory/0 ' + H) +
+    block('Clear all memory', 'curl -X DELETE ' + S + '/api/memory ' + H);
+
+  // ── Files ──
+  html += sec('Files & Uploads', 'var(--accent)') +
+    block('Upload a file', 'curl -X POST ' + S + '/api/upload \\\n  ' + H + ' \\\n  -F "file=@report.docx"\n\n# Supports: images, pdf, docx→text, xlsx→csv, pptx→text,\n# audio, video, code, txt, md, ipynb, and more\n# Auto-deleted after 1 hour') +
+    block('List uploaded files', 'curl ' + S + '/api/files ' + H) +
+    block('Get file metadata', 'curl ' + S + '/api/files/FILE_ID ' + H) +
+    block('Download uploaded file', 'curl ' + S + '/api/files/FILE_ID/download ' + H + ' -o output.pdf') +
+    block('Delete uploaded file', 'curl -X DELETE ' + S + '/api/files/FILE_ID ' + H) +
+    block('Download generated output', '# file_url is returned in generate responses\n# No auth header needed — works directly in browser\ncurl ' + S + '/api/download/' + U + '/FILENAME -o file.html\n\n# Or just open in browser:\n# ' + S + '/api/download/' + U + '/FILENAME');
+
+  // ── Generate ──
+  html += sec('Generate Files & Media', '#d4a017') +
+    block('Generate file (HTML/SVG/CSV/JSON/Python)', 'curl -X POST ' + S + '/api/generate/file \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "landing page for coffee shop", "type": "html"}\'\n\n# Types: html, svg, csv, json, py, image, video\n# Limits: 5/day free, unlimited pro/admin') +
+    block('Generate image', 'curl -X POST ' + S + '/api/generate/image \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "a futuristic city skyline at sunset"}\'\n\n# Returns SVG if native image gen not available') +
+    block('Generate animated video (HTML5)', 'curl -X POST ' + S + '/api/generate/video \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "solar system orbiting animation"}\'') +
+    block('Generate PDF (Pro only)', 'curl -X POST ' + S + '/api/pdf \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"markdown": "# Report\\n\\nContent here..."}\'');
+
+  // ── Sessions ──
+  html += sec('Sessions', 'var(--accent)') +
+    block('List sessions', 'curl ' + S + '/api/sessions ' + H) +
+    block('Create session', 'curl -X POST ' + S + '/api/sessions \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"title": "My Project"}\'') +
+    block('Get session + history', 'curl ' + S + '/api/sessions/SESSION_ID ' + H) +
+    block('Rename session', 'curl -X PUT ' + S + '/api/sessions/SESSION_ID \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"title": "New Name"}\'') +
+    block('Delete session', 'curl -X DELETE ' + S + '/api/sessions/SESSION_ID ' + H) +
+    block('Clear session messages', 'curl -X DELETE ' + S + '/api/sessions/SESSION_ID/messages ' + H);
+
+  // ── Skills ──
+  html += sec('Skills (System Prompt Modules)', 'var(--accent)') +
+    block('List skills', 'curl ' + S + '/api/skills ' + H) +
+    block('Get skill content', 'curl ' + S + '/api/skills/coding ' + H) +
+    block('Upload skill (JSON)', 'curl -X POST ' + S + '/api/skills/upload \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"name": "coding", "content": "You are an expert programmer.\\nAlways use best practices."}\'') +
+    block('Upload skill (file)', 'curl -X POST ' + S + '/api/skills/upload \\\n  ' + H + ' \\\n  -F "file=@coding.md"') +
+    block('Delete skill', 'curl -X DELETE ' + S + '/api/skills/coding ' + H);
+
+  // ── User ──
+  html += sec('User & Auth', 'var(--accent)') +
+    block('Current user info', 'curl ' + S + '/api/me ' + H + '\n\n# Returns: user_id, email, name, is_admin, is_pro, tier_id,\n# storage_used_bytes, storage_cap_bytes, session_limit') +
+    block('Auth status', 'curl ' + S + '/auth/status ' + H) +
+    block('Logout', 'curl ' + S + '/auth/logout ' + H);
+
+  // ── Compat APIs ──
+  html += sec('OpenAI-Compatible API', 'var(--yellow)') +
+    block('List models', 'curl ' + S + '/v1/models \\\n  -H "Authorization: Bearer ' + U + '"') +
+    block('Chat completion', 'curl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gemini-2.5-pro", "messages": [{"role": "user", "content": "Hello"}]}\'') +
+    block('Streaming chat', 'curl -N -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hi"}], "stream": true}\'\n\n# GPT model names are mapped → Gemini: gpt-4o→2.5-pro, gpt-4o-mini→2.5-flash') +
+    block('Python OpenAI client', 'import openai\n\nclient = openai.OpenAI(\n    base_url="' + S + '/v1",\n    api_key="' + U + '"\n)\n\n# Standard chat\nresp = client.chat.completions.create(\n    model="gemini-2.5-pro",\n    messages=[{"role": "user", "content": "Explain AI"}]\n)\nprint(resp.choices[0].message.content)\n\n# Streaming\nstream = client.chat.completions.create(\n    model="gemini-2.5-flash",\n    messages=[{"role": "user", "content": "Tell me a joke"}],\n    stream=True\n)\nfor chunk in stream:\n    if chunk.choices[0].delta.content:\n        print(chunk.choices[0].delta.content, end="", flush=True)');
+
+  html += sec('Anthropic-Compatible API', 'var(--yellow)') +
+    block('Messages', 'curl -X POST ' + S + '/v1/messages \\\n  -H "x-api-key: ' + U + '" ' + C + ' \\\n  -d \'{"model": "claude-opus-4", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 1024}\'\n\n# Claude model names are mapped → Gemini: claude-opus-4→2.5-pro, claude-sonnet-4→2.5-flash') +
+    block('Python Anthropic client', 'import anthropic\n\nclient = anthropic.Anthropic(\n    base_url="' + S + '",\n    api_key="' + U + '"\n)\n\nmsg = client.messages.create(\n    model="claude-opus-4",\n    max_tokens=1024,\n    messages=[{"role": "user", "content": "Hello, Claude"}]\n)\nprint(msg.content[0].text)');
+
+  html += sec('Gemini-Native API', 'var(--yellow)') +
+    block('List models', 'curl "' + S + '/v1beta/models?key=' + U + '"') +
+    block('Generate content', 'curl -X POST "' + S + '/v1beta/models/gemini-2.5-flash:generateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}\'') +
+    block('Streaming generate', 'curl -N -X POST "' + S + '/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Stream this"}]}]}\'');
+
+  // ── Admin (only shown to admins) ──
+  if (isAdmin) {
+    html += sec('Admin Only', 'var(--red)') +
+      block('Server vitals', 'curl ' + S + '/api/admin/vitals ' + H) +
+      block('List all users', 'curl ' + S + '/api/admin/users ' + H) +
+      block('Promote user (pro/admin)', 'curl -X POST ' + S + '/api/admin/users/USER_ID/promote \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"role": "pro"}\'') +
+      block('Demote user', 'curl -X POST ' + S + '/api/admin/users/USER_ID/demote \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"role": "pro"}\'') +
+      block('Delete user', 'curl -X DELETE ' + S + '/api/admin/users/USER_ID ' + H) +
+      block('Admin emails', 'curl ' + S + '/api/admin/emails ' + H + '\ncurl -X POST ' + S + '/api/admin/emails ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'\ncurl -X DELETE ' + S + '/api/admin/emails ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'') +
+      block('Pro users', 'curl ' + S + '/api/admin/pro ' + H + '\ncurl -X POST ' + S + '/api/admin/pro ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'\ncurl -X DELETE ' + S + '/api/admin/pro ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'') +
+      block('Download contacts', 'curl ' + S + '/api/admin/contacts?format=download ' + H + ' -o contacts.json') +
+      block('Clear user sessions', 'curl -X DELETE ' + S + '/api/admin/users/USER_ID/sessions ' + H) +
+      block('Run guardrail evals', 'curl ' + S + '/api/eval/guardrails ' + H);
+  }
+
+  html += '<div style="margin-top:24px;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px">' +
+    '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Your User ID</div>' +
+    '<div style="position:relative"><pre style="background:transparent;border:none;padding:0;font-size:13px;color:var(--accent)">' + escHtml(U) + '</pre>' +
+    '<button onclick="copyCode(this)" style="position:absolute;top:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text2);padding:2px 8px;cursor:pointer;font-size:11px">Copy</button></div>' +
+    '</div>';
+
+  el.innerHTML = html;
+}
+
+function toggleAdminEmails() {
+  var el = document.getElementById('admin-emails-section');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleVitals() {
+  var overlay = document.getElementById('vitals-overlay');
+  overlay.classList.toggle('open');
+  if (overlay.classList.contains('open')) loadVitals();
+}
+
+async function loadVitals() {
+  var el = document.getElementById('vitals-content');
+  el.innerHTML = 'Loading...';
+  try {
+    var r = await apiFetch('/api/admin/vitals');
+    var d = await r.json();
+    var mem = d.memory || {};
+    var disk = d.disk || {};
+    var users = d.users || [];
+
+    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
+      '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Memory</div>' +
+        '<div style="font-size:20px;color:var(--text);font-weight:600">' + mem.percent + '%</div>' +
+        '<div style="font-size:12px">' + mem.used_mb + ' / ' + mem.total_mb + ' MB</div>' +
+      '</div>' +
+      '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Disk</div>' +
+        '<div style="font-size:20px;color:var(--text);font-weight:600">' + disk.percent + '%</div>' +
+        '<div style="font-size:12px">' + disk.used_gb + ' / ' + disk.total_gb + ' GB</div>' +
+      '</div>' +
+      '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Uptime</div>' +
+        '<div style="font-size:20px;color:var(--text);font-weight:600">' + (d.uptime || '?') + '</div>' +
+      '</div>' +
+      '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Gemini CLI</div>' +
+        '<div style="font-size:20px;color:var(--text);font-weight:600">v' + (d.gemini_cli_version || '?') + '</div>' +
+      '</div>' +
+    '</div>';
+
+    html += '<h3 style="font-size:14px;color:var(--accent);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px">Users (' + users.length + ')</h3>';
+    if (users.length) {
+      html += '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+        '<tr><th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text2)">Email</th>' +
+        '<th style="text-align:right;padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text2)">Sessions</th>' +
+        '<th style="text-align:right;padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text2)">Disk</th>' +
+        '<th style="text-align:center;padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text2)"></th></tr>';
+      users.forEach(function(u) {
+        html += '<tr><td style="padding:4px 8px;border-bottom:1px solid var(--border)">' + escHtml(u.email) + '</td>' +
+          '<td style="text-align:right;padding:4px 8px;border-bottom:1px solid var(--border)">' + u.sessions + '</td>' +
+          '<td style="text-align:right;padding:4px 8px;border-bottom:1px solid var(--border)">' + u.disk_kb + 'KB</td>' +
+          '<td style="text-align:center;padding:4px 8px;border-bottom:1px solid var(--border)"><button onclick="cleanUserSessions(\'' + u.user_id + '\')" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--red);padding:2px 6px;cursor:pointer;font-size:11px">Clean</button></td></tr>';
+      });
+      html += '</table>';
+    } else {
+      html += '<p style="color:var(--text2)">No users yet.</p>';
+    }
+
+    html += '<div style="margin-top:16px;text-align:right"><button onclick="loadVitals()" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text2);padding:4px 12px;cursor:pointer;font-size:12px">Refresh</button></div>';
+
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = 'Failed to load vitals: ' + e.message;
+  }
+}
+
+function downloadAllData() {
+  window.open('/api/admin/contacts?format=download', '_blank');
+}
+
+async function cleanUserSessions(uid) {
+  if (!confirm('Delete all sessions for this user?')) return;
+  await apiFetch('/api/admin/users/' + uid + '/sessions', {method: 'DELETE'});
+  loadVitals();
+}
+
+// ── Sessions ───────────────────────────────────────────────
+async function loadSessions() {
+  var r = await apiFetch('/api/sessions');
+  var sessions = await r.json();
+  var list = document.getElementById('session-list');
+  list.innerHTML = sessions.map(function(s) {
+    return '<div class="session-item ' + (currentSession === s.id ? 'active' : '') + '" onclick="loadSession(\'' + s.id + '\')">' +
+      '<span>' + escHtml(s.title) + '</span>' +
+      '<button class="del-btn" onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')">&times;</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadSession(id) {
+  var r = await apiFetch('/api/sessions/' + id);
+  var sess = await r.json();
+  currentSession = id;
+  document.getElementById('chat-title').textContent = sess.title;
+  renderMessages(sess.messages || []);
+  loadSessions();
+}
+
+async function newChat() {
+  var r = await apiFetch('/api/sessions', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({})});
+  var sess = await r.json();
+  currentSession = sess.id;
+  document.getElementById('chat-title').textContent = sess.title;
+  renderMessages([]);
+  loadSessions();
+}
+
+async function deleteSession(id) {
+  await apiFetch('/api/sessions/' + id, {method: 'DELETE'});
+  if (currentSession === id) { currentSession = null; document.getElementById('chat-title').textContent = 'New Chat'; renderMessages([]); }
+  loadSessions();
+}
+
+// ── Messages ───────────────────────────────────────────────
+function renderMessages(messages) {
+  var container = document.getElementById('chat-messages');
+  if (!messages.length) {
+    container.innerHTML = '<div class="empty-state"><h3>Start a conversation</h3><p>Send a message or upload a file to begin.</p></div>';
+    return;
+  }
+  container.innerHTML = messages.map(function(m) {
+    var content = m.role === 'model' ? renderMd(m.text || '') : escHtml(m.text || '');
+    var files = (m.files || []).map(function(f) { return '<div class="file-chip">' + escHtml(f.name) + '</div>'; }).join('');
+    return '<div class="message ' + m.role + '">' + content + files + '</div>';
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+  try { container.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {}
+}
+
+function appendMessage(role, html) {
+  var container = document.getElementById('chat-messages');
+  var empty = container.querySelector('.empty-state');
+  if (empty) empty.remove();
+  var div = document.createElement('div');
+  div.className = 'message ' + role;
+  div.innerHTML = html;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  try { div.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {}
+  return div;
+}
+
+// ── Send ───────────────────────────────────────────────────
+async function sendMessage() {
+  if (isStreaming) return;
+  var input = document.getElementById('prompt-input');
+  var text = input.value.trim();
+  if (!text && !uploadedFiles.length) return;
+
+  var userHtml = escHtml(text);
+  if (uploadedFiles.length) {
+    userHtml += uploadedFiles.map(function(f) { return '<div class="file-chip">' + escHtml(f.name) + '</div>'; }).join('');
+  }
+  appendMessage('user', userHtml);
+  input.value = '';
+  autoResize(input);
+
+  var payload = { prompt: text, session_id: currentSession, stream: true, files: uploadedFiles.map(function(f) { return {path: f.path, name: f.name}; }) };
+  uploadedFiles = [];
+  document.getElementById('file-preview').innerHTML = '';
+  isStreaming = true;
+  document.getElementById('send-btn').disabled = true;
+
+  var modelDiv = appendMessage('model', '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>');
+  var fullText = '';
+
+  try {
+    var r = await apiFetch('/api/prompt', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    if (!r.ok) {
+      var err = await r.json().catch(function() { return {error: 'Request failed'}; });
+      modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(err.error || 'Error') + '</span>';
+      return;
+    }
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, {stream: true});
+      var lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (var i = 0; i < lines.length; i++) {
+        if (!lines[i].startsWith('data: ')) continue;
+        try {
+          var d = JSON.parse(lines[i].slice(6));
+          if (d.error) { modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(d.error) + '</span>'; }
+          else if (d.text) { fullText += d.text; modelDiv.innerHTML = renderMd(fullText); document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight; }
+          else if (d.type === 'done') { try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {} }
+        } catch(e) {}
+      }
+    }
+    if (currentSession) {
+      var sr = await apiFetch('/api/sessions/' + currentSession);
+      var sess = await sr.json();
+      if (sess.title) document.getElementById('chat-title').textContent = sess.title;
+    }
+    loadSessions();
+  } catch(e) {
+    modelDiv.innerHTML = '<span style="color:var(--red)">Jaika is down. Contact support for help.</span>';
+  } finally {
+    isStreaming = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+}
+
+// ── Files ──────────────────────────────────────────────────
+async function handleFiles(fileList) {
+  for (var i = 0; i < fileList.length; i++) {
+    var formData = new FormData();
+    formData.append('file', fileList[i]);
+    try {
+      var r = await apiFetch('/api/upload', {method: 'POST', body: formData});
+      var d = await r.json();
+      uploadedFiles.push({path: d.path, name: d.name});
+      renderFilePreview();
+    } catch(e) {}
+  }
+  document.getElementById('file-input').value = '';
+}
+
+function renderFilePreview() {
+  document.getElementById('file-preview').innerHTML = uploadedFiles.map(function(f, i) {
+    return '<div class="file-chip">' + escHtml(f.name) + ' <span class="remove" onclick="removeFile(' + i + ')">&times;</span></div>';
+  }).join('');
+}
+function removeFile(i) { uploadedFiles.splice(i, 1); renderFilePreview(); }
+
+// ── Init ───────────────────────────────────────────────────
+initLogin();
+</script>
+</body>
+</html>

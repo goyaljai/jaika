@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package jaika;
+
+// Bidirectional streaming chat service for Jaika
+// Admin-only: allows real-time chat with Gemini via gRPC
+service JaikaChat {
+  // Bidirectional streaming: client sends messages, server streams responses
+  rpc Chat (stream ChatMessage) returns (stream ChatResponse);
+}
+
+message ChatMessage {
+  string user_id = 1;      // X-User-Id for auth
+  string text = 2;          // User's message
+  string session_id = 3;    // Optional session ID for memory
+}
+
+message ChatResponse {
+  string text = 1;          // AI response text
+  string session_id = 2;    // Session ID
+  string status = 3;        // "start", "chunk", "done", "error"
+}
