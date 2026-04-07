@@ -111,7 +111,7 @@ a:hover { color: var(--accent-hover); }
 .nav-lnk:hover { color: var(--text); background: rgba(255,255,255,.03); }
 .nav-lnk.active { color: var(--accent); border-left-color: var(--accent); background: rgba(88,166,255,.06); }
 .nav-lnk .nl-icon { font-size: 13px; width: 16px; text-align: center; }
-.docs-main { flex: 1; overflow-y: auto; padding: 28px 44px 80px; max-width: 900px; }
+.docs-main { flex: 1; overflow-y: auto; padding: 28px 44px 80px; }
 .cred-card {
   background: linear-gradient(135deg, rgba(88,166,255,.05), rgba(63,185,80,.03));
   border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 32px;
@@ -374,22 +374,122 @@ a:hover { color: var(--accent-hover); }
 </head>
 <body>
 
-<!-- Login Screen (unauthenticated) -->
-<div id="login-screen">
-  <div class="login-left">
-    <h1>Jaika</h1>
-    <p class="tagline">AI assistant powered by Google Gemini.<br>Free. Fast. Self-hosted.</p>
-    <p style="font-size:14px;color:var(--text2);margin-bottom:10px">Run this in your terminal to sign in:</p>
-    <div class="cmd-box" id="cmd-box">
-      <code id="cmd-text">Loading...</code>
-      <button class="copy-btn" onclick="copyCmd()">Copy</button>
+<!-- Login / Landing Screen -->
+<div id="login-screen" style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+
+  <!-- Thin accent bar at top (Lattice-style) -->
+  <div style="height:3px;background:linear-gradient(90deg,var(--accent),var(--green),#d4a017,var(--accent));flex-shrink:0"></div>
+
+  <!-- Nav — same max-width and padding as content so Jaika aligns with headline -->
+  <div style="max-width:1060px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;flex-shrink:0;border-bottom:1px solid var(--border)">
+    <div style="font-size:22px;font-weight:700;display:flex;align-items:center;gap:10px"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block"></span>Jaika</div>
+    <div style="display:flex;align-items:center;gap:18px">
+      <span style="font-size:14px;color:var(--text2)">30+ endpoints</span>
+      <span style="font-size:14px;color:var(--text2)">3 SDK routers</span>
+      <span style="font-size:14px;color:var(--text2)">Self-hosted</span>
+      <a href="/pro" style="font-size:14px;color:#000;font-weight:600;padding:7px 18px;background:#d4a017;border-radius:6px;text-decoration:none;flex-shrink:0">Get Pro</a>
     </div>
-    <div class="login-status waiting" id="login-status" style="margin-top:8px">Generating login link...</div>
   </div>
-  <div class="login-right">
-    <video autoplay loop muted playsinline preload="auto" style="width:100%;height:100%;object-fit:contain;border-radius:16px;border:1px solid var(--border);background:#000" onended="this.play()">
-      <source src="/static/demo.mp4?v=3" type="video/mp4">
-    </video>
+
+  <!-- Main content — vertically centered, two columns -->
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:0 24px;gap:40px;min-height:0;max-width:1060px;margin:0 auto;width:100%">
+
+    <!-- Left column: copy -->
+    <div style="flex:0 1 480px;min-width:0">
+      <h1 style="font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1.06;margin-bottom:18px">The AI platform<br><span style="font-style:italic;background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">builders love</span></h1>
+      <p style="font-size:19px;color:var(--text2);line-height:1.5;margin-bottom:28px">Build with AI for free. Chat, files, memory, generation — 30+ REST endpoints. Drop-in OpenAI, Anthropic, and Gemini SDK support.</p>
+
+      <!-- Sign in — primary CTA -->
+      <p style="font-size:16px;color:var(--text);font-weight:600;margin-bottom:10px">Sign in with Google — run in your terminal:</p>
+      <div class="cmd-box" id="cmd-box" style="padding:14px 18px;margin-bottom:6px">
+        <code id="cmd-text" style="font-size:15px">Loading...</code>
+        <button class="copy-btn" onclick="copyCmd()" style="font-size:14px;padding:7px 16px">Copy</button>
+      </div>
+      <div class="login-status waiting" id="login-status" style="margin-top:5px;font-size:13px;margin-bottom:18px"></div>
+
+      <!-- Already have account — link to popup -->
+      <p style="font-size:15px;color:var(--text2)">Already signed in? <a href="#" onclick="document.getElementById('email-modal').style.display='flex';document.getElementById('email-input').focus();return false" style="color:var(--accent);font-weight:500">Enter your email to view API docs &#8594;</a></p>
+
+      <!-- Email modal (hidden by default) -->
+      <div id="email-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:999;align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 32px;width:400px;max-width:90vw;position:relative">
+          <button onclick="this.closest('#email-modal').style.display='none'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer">&times;</button>
+          <h3 style="font-size:18px;font-weight:700;margin-bottom:4px">Welcome back</h3>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Enter the email you signed in with to access your API documentation.</p>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <input type="email" id="email-input" placeholder="you@company.com" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:11px 14px;font-size:14px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')emailLookup()">
+            <button onclick="emailLookup()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap">Go</button>
+          </div>
+          <div id="email-status" style="font-size:12px;min-height:16px;color:var(--text2)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: stacked API cards -->
+    <div style="flex:0 1 460px;min-width:0;display:flex;flex-direction:column;gap:10px">
+
+      <!-- Card: Chat -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:var(--green)"></div>
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;padding-left:6px">
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(56,139,253,.15);color:#388bfd;font-family:'SF Mono',monospace">POST</span>
+          <span style="font-size:14px;font-weight:600;font-family:'SF Mono','Fira Code',monospace;color:var(--text)">/api/prompt</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:auto">Chat with AI</span>
+        </div>
+        <pre style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:#79c0ff;margin:0;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;line-height:1.55">curl -X POST /api/prompt \
+  -H "X-User-Id: YOUR_USER_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello!", "stream": false}'</pre>
+      </div>
+
+      <!-- Card: OpenAI SDK -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:#d29922"></div>
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;padding-left:6px">
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(210,153,34,.15);color:#d29922;font-family:'SF Mono',monospace">SDK</span>
+          <span style="font-size:14px;font-weight:600;font-family:'SF Mono','Fira Code',monospace;color:var(--text)">openai.OpenAI()</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:auto">Drop-in replacement</span>
+        </div>
+        <pre style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:#79c0ff;margin:0;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;line-height:1.55">import openai
+client = openai.OpenAI(
+    base_url="https://your-server/v1",
+    api_key="YOUR_USER_ID"
+)
+resp = client.chat.completions.create(
+    model="gemini-2.5-pro",
+    messages=[{"role": "user", "content": "Hello!"}]
+)</pre>
+      </div>
+
+      <!-- Card: Generate -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent)"></div>
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;padding-left:6px">
+          <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(88,166,255,.15);color:var(--accent);font-family:'SF Mono',monospace">POST</span>
+          <span style="font-size:14px;font-weight:600;font-family:'SF Mono','Fira Code',monospace;color:var(--text)">/api/generate/file</span>
+          <span style="font-size:12px;color:var(--text2);margin-left:auto">AI file generation</span>
+        </div>
+        <pre style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:#79c0ff;margin:0;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;line-height:1.55">curl -X POST /api/generate/file \
+  -H "X-User-Id: YOUR_USER_ID" \
+  -d '{"prompt": "coffee shop landing page",
+       "type": "html"}'</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div style="max-width:1060px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-top:1px solid var(--border);flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:16px">
+      <span style="font-size:11px;color:var(--text2)">💬 Chat</span>
+      <span style="font-size:11px;color:var(--text2)">📎 Files</span>
+      <span style="font-size:11px;color:var(--text2)">🧠 Memory</span>
+      <span style="font-size:11px;color:var(--text2)">🎙️ Voice</span>
+      <span style="font-size:11px;color:var(--text2)">✨ Generate</span>
+      <span style="font-size:11px;color:var(--text2)">🔌 OpenAI</span>
+      <span style="font-size:11px;color:var(--text2)">⚡ Skills</span>
+      <span style="font-size:11px;color:var(--text2)">💾 Sessions</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2)">Built by <a href="https://www.linkedin.com/in/goyaljai" target="_blank" style="color:var(--accent);text-decoration:none">Jai Goyal</a> &bull; <a href="https://goyaljai.medium.com/" target="_blank" style="color:var(--accent);text-decoration:none">Blog</a></div>
   </div>
 </div>
 
@@ -696,6 +796,40 @@ async function startLoginFlow() {
   document.getElementById('cmd-text').textContent = cmd;
   document.getElementById('login-status').textContent = 'Run the command above, then sign in with Google.';
   document.getElementById('login-status').className = 'login-status waiting';
+}
+
+async function emailLookup() {
+  var input = document.getElementById('email-input');
+  var status = document.getElementById('email-status');
+  var email = (input.value || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    status.innerHTML = '<span style="color:var(--red)">Please enter a valid email</span>';
+    return;
+  }
+  status.innerHTML = '<span style="color:var(--accent)">Looking up...</span>';
+  try {
+    var r = await fetch('/auth/lookup?email=' + encodeURIComponent(email));
+    var d = await r.json();
+    if (d.found && d.user_id) {
+      localStorage.setItem('jaika_uid', d.user_id);
+      localStorage.setItem('jaika_user', JSON.stringify(d));
+      status.innerHTML = '<span style="color:var(--green)">Welcome back, ' + escHtml(d.name || d.email) + '! Loading docs...</span>';
+      setTimeout(function() {
+        if (d.is_admin) {
+          showApp(d);
+        } else {
+          showPublicPage(d);
+        }
+        document.getElementById('login-screen').style.display = 'none';
+      }, 600);
+    } else if (d.expired) {
+      status.innerHTML = '<span style="color:var(--yellow)">Account found but session expired. Run the terminal command below to re-login.</span>';
+    } else {
+      status.innerHTML = '<span style="color:var(--text2)">No account found for this email. Sign in with the terminal command below to create one.</span>';
+    }
+  } catch(e) {
+    status.innerHTML = '<span style="color:var(--red)">Lookup failed. Try again.</span>';
+  }
 }
 
 async function pollLogin() {
@@ -1418,7 +1552,8 @@ async function sendMessage() {
         if (!lines[i].startsWith('data: ')) continue;
         try {
           var d = JSON.parse(lines[i].slice(6));
-          if (d.error) { modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(d.error) + '</span>'; }
+          if (d.type === 'session' && d.session_id) { currentSession = d.session_id; }
+          else if (d.error) { modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(d.error) + '</span>'; }
           else if (d.text) { fullText += d.text; modelDiv.innerHTML = renderMd(fullText); document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight; }
           else if (d.type === 'done') { try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {} }
         } catch(e) {}

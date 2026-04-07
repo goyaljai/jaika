@@ -2,6 +2,10 @@
 
 import os
 import re
+import time
+
+# Cache for build_system_instruction() — 5 min TTL, invalidated on save/delete
+_si_cache = {"text": None, "expires": 0}
 
 
 def _skills_dir():
@@ -46,6 +50,7 @@ def save_skill(name, content):
     path = os.path.join(_skills_dir(), f"{name}.md")
     with open(path, "w") as f:
         f.write(content)
+    _si_cache["expires"] = 0  # invalidate cache
     return True
 
 
@@ -57,12 +62,19 @@ def delete_skill(name):
     path = os.path.join(_skills_dir(), f"{name}.md")
     if os.path.exists(path):
         os.remove(path)
+        _si_cache["expires"] = 0  # invalidate cache
         return True
     return False
 
 
 def build_system_instruction():
-    """Combine SYSTEM_PROMPT + all skills into a system instruction string."""
+    """Combine SYSTEM_PROMPT + all skills into a system instruction string.
+    Cached for 5 minutes; invalidated on skill save/delete.
+    """
+    now = time.time()
+    if _si_cache["text"] is not None and now < _si_cache["expires"]:
+        return _si_cache["text"]
+
     from prompt_engine import SYSTEM_PROMPT
 
     # Always start with the core system prompt (identity, rules, etc.)
@@ -85,4 +97,7 @@ def build_system_instruction():
     if skill_parts:
         sections.append("You have the following domain expertise:\n\n" + "\n\n".join(skill_parts))
 
-    return "\n\n".join(sections)
+    result = "\n\n".join(sections)
+    _si_cache["text"] = result
+    _si_cache["expires"] = now + 300  # 5 min TTL
+    return result

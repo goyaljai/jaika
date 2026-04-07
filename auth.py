@@ -71,20 +71,41 @@ def refresh_access_token(user_id, token):
     if not refresh_token:
         return None
 
-    resp = http_requests.post(GOOGLE_TOKEN_URL, data={
-        "client_id": CLI_CLIENT_ID,
-        "client_secret": CLI_CLIENT_SECRET,
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    }, timeout=15)
+    # Retry once on transient network errors
+    for attempt in range(2):
+        try:
+            resp = http_requests.post(GOOGLE_TOKEN_URL, data={
+                "client_id": CLI_CLIENT_ID,
+                "client_secret": CLI_CLIENT_SECRET,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }, timeout=15)
+        except Exception:
+            if attempt == 0:
+                time.sleep(1)
+                continue
+            return None
 
-    if resp.status_code != 200:
-        return None
+        if resp.status_code == 200:
+            new_token = resp.json()
+            new_token["refresh_token"] = refresh_token
+            save_token(user_id, new_token)
+            return new_token
 
-    new_token = resp.json()
-    new_token["refresh_token"] = refresh_token
-    save_token(user_id, new_token)
-    return new_token
+        # Transient server error — retry once
+        if resp.status_code >= 500 and attempt == 0:
+            time.sleep(1)
+            continue
+
+        # 400/401 = refresh token is permanently invalid
+        import logging
+        logging.getLogger(__name__).warning(
+            "Refresh token invalid for user %s: %s %s",
+            user_id, resp.status_code, resp.text[:200],
+        )
+        break
+
+    return None
 
 
 def _admins_path():
@@ -227,7 +248,14 @@ def login_required(f):
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
         if get_access_token(user_id) is None:
-            return jsonify({"error": "Token expired, please log in again"}), 401
+            token = load_token(user_id)
+            if token and token.get("refresh_token"):
+                return jsonify({
+                    "error": "Refresh token revoked or expired. Please re-login.",
+                    "action": "relogin",
+                    "hint": "curl -sL <server>/login | bash",
+                }), 401
+            return jsonify({"error": "Not authenticated. Please log in.", "action": "login"}), 401
         return f(*args, **kwargs)
     return wrapper
 
@@ -487,6 +515,44 @@ def logout():
                 shutil.rmtree(cli_dir)
     session.clear()
     return redirect("/")
+
+
+@auth_bp.route("/lookup")
+def lookup():
+    """Look up a user by email. Admin-only to prevent user enumeration."""
+    caller = _get_user_id()
+    if not caller or not is_admin(caller):
+        return jsonify({"error": "Admin access required"}), 403
+    email = request.args.get("email", "").strip().lower()
+    if not email:
+        return jsonify({"found": False, "error": "Email required"}), 400
+    # Search all users for this email
+    users_dir = os.path.join(_data_dir(), "users")
+    if not os.path.exists(users_dir):
+        return jsonify({"found": False})
+    for uid in os.listdir(users_dir):
+        meta_path = os.path.join(users_dir, uid, "user.json")
+        if not os.path.exists(meta_path):
+            continue
+        try:
+            with open(meta_path) as f:
+                info = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            continue
+        if info.get("email", "").lower() == email:
+            # Verify token is still valid
+            if load_token(uid) is None:
+                return jsonify({"found": True, "expired": True, "error": "Account found but token expired. Please re-login with the terminal command."})
+            return jsonify({
+                "found": True,
+                "user_id": uid,
+                "email": info.get("email", ""),
+                "name": info.get("name", ""),
+                "picture": info.get("picture", ""),
+                "is_admin": is_admin(uid),
+                "is_pro": is_pro(uid) or is_admin(uid),
+            })
+    return jsonify({"found": False})
 
 
 @auth_bp.route("/status")

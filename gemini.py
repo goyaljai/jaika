@@ -17,9 +17,14 @@ log = logging.getLogger(__name__)
 
 ENDPOINT = "https://cloudcode-pa.googleapis.com"
 CLI_VERSION = "0.36.0"
-MODEL_FALLBACK = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]
-MODEL_THINKING  = "gemini-2.5-pro"   # best model for extended thinking
+MODEL_FALLBACK = ["gemini-2.5-flash", "gemini-2.0-flash"]
+MODEL_THINKING  = "gemini-2.5-flash"  # thinking via flash (saves pro quota)
 MODEL_TTS       = "gemini-2.5-flash"  # TTS via responseModalities AUDIO
+
+# ── Retry config (ported from gemini-cli) ────────────────────────────────────
+RETRY_MAX_ATTEMPTS = 3        # 1 initial + 2 retries (each retry = 1 API call against quota)
+RETRY_INITIAL_DELAY = 5.0     # seconds (fallback if server doesn't specify)
+MAX_RETRYABLE_DELAY = 300     # if server says wait > 5min, treat as terminal
 
 # ── Per-user project ID + tier cache ─────────────────────────────────────────
 # { user_id: {"project_id": str, "tier_id": str, "tier_name": str, "ts": float} }
@@ -143,6 +148,68 @@ def _platform_str():
 _USER_AGENT = f"gemini-cli/{CLI_VERSION} {_platform_str()}"
 
 
+# ── Error classification (ported from gemini-cli googleQuotaErrors.ts) ───────
+
+import random
+import re
+
+
+def _classify_error(resp):
+    """Classify a 429/503 response into retryable vs terminal.
+    Returns: ("retryable", delay_seconds) or ("terminal", reason)
+    """
+    if resp.status_code == 503:
+        return ("retryable", RETRY_INITIAL_DELAY)
+
+    try:
+        data = resp.json()
+    except Exception:
+        return ("retryable", RETRY_INITIAL_DELAY)
+
+    error = data.get("error", {})
+    message = error.get("message", "")
+    details = error.get("details", [])
+
+    # Check for QUOTA_EXHAUSTED (terminal — daily limit)
+    for d in details:
+        reason = d.get("reason", "")
+        if reason == "QUOTA_EXHAUSTED":
+            return ("terminal", "Daily quota exhausted")
+        # Check QuotaFailure for PerDay
+        for v in d.get("violations", []):
+            if "PerDay" in v.get("subject", ""):
+                return ("terminal", "Daily quota exhausted")
+
+    # Parse "retry after Xs" from message
+    m = re.search(r"reset after (\d+)s", message)
+    if m:
+        delay = int(m.group(1))
+        if delay > MAX_RETRYABLE_DELAY:
+            return ("terminal", f"Retry delay too long ({delay}s)")
+        return ("retryable", delay)
+
+    # Parse RetryInfo from details
+    for d in details:
+        retry_delay = d.get("retryDelay", "")
+        if retry_delay:
+            secs = int(re.sub(r"[^\d]", "", retry_delay) or "0")
+            if secs > MAX_RETRYABLE_DELAY:
+                return ("terminal", f"Retry delay too long ({secs}s)")
+            return ("retryable", max(secs, 1))
+
+    # Default: retryable with initial delay
+    return ("retryable", RETRY_INITIAL_DELAY)
+
+
+def _retry_delay(attempt, server_delay):
+    """Use exact server-provided delay + small buffer to avoid wasted retries.
+    Each retry is a real API call that counts against quota, so we want
+    to wait long enough that the next call succeeds on first try.
+    """
+    buffer = random.uniform(1.0, 3.0)  # 1-3s buffer after server's reset window
+    return server_delay + buffer
+
+
 def _headers(user_id):
     token = get_access_token(user_id)
     if not token:
@@ -219,44 +286,52 @@ def generate(user_id, messages, files=None, system_instruction=None,
         request_body["generationConfig"] = gen_config
 
     models = [MODEL_THINKING] if thinking else MODEL_FALLBACK
+    url = f"{ENDPOINT}/v1internal:generateContent"
+
     for model in models:
         body = {"model": model, "project": project_id, "request": request_body}
-        url = f"{ENDPOINT}/v1internal:generateContent"
-        try:
-            resp = http_requests.post(url, headers=headers, json=body, timeout=180)
-        except Exception as e:
-            return {"error": f"Request failed: {e}"}
 
-        log.info("[GEMINI] model=%s status=%s len=%s", model, resp.status_code, len(resp.text))
-        if resp.status_code != 200:
-            log.warning("[GEMINI] error body: %s", resp.text[:300])
-
-        if resp.status_code == 200:
-            data = resp.json()
+        for attempt in range(RETRY_MAX_ATTEMPTS):
             try:
-                parts = data["response"]["candidates"][0]["content"]["parts"]
-                # Skip thought parts, get the text part
-                text = next((p["text"] for p in parts if "text" in p and not p.get("thought")), None)
-                if text is None:
+                resp = http_requests.post(url, headers=headers, json=body, timeout=180)
+            except Exception as e:
+                return {"error": f"Request failed: {e}"}
+
+            log.info("[GEMINI] model=%s attempt=%d status=%s", model, attempt + 1, resp.status_code)
+
+            if resp.status_code == 200:
+                data = resp.json()
+                try:
+                    parts = data["response"]["candidates"][0]["content"]["parts"]
+                    text = next((p["text"] for p in parts if "text" in p and not p.get("thought")), None)
+                    if text is None:
+                        text = json.dumps(data, indent=2)
+                    grounding_meta = data["response"]["candidates"][0].get("groundingMetadata")
+                except (KeyError, IndexError):
                     text = json.dumps(data, indent=2)
-                # Extract grounding metadata if present
-                grounding_meta = data["response"]["candidates"][0].get("groundingMetadata")
-            except (KeyError, IndexError):
-                text = json.dumps(data, indent=2)
-                grounding_meta = None
-            result = {"text": check_output_guardrails(text)}
-            if grounding_meta:
-                result["grounding"] = grounding_meta
-            return result
+                    grounding_meta = None
+                result = {"text": check_output_guardrails(text)}
+                if grounding_meta:
+                    result["grounding"] = grounding_meta
+                return result
 
-        if resp.status_code in (429, 503):
-            log.warning("Model %s rate-limited (%s), not retrying (same quota)", model, resp.status_code)
-            return {"error": "Service temporarily busy. Please retry in a few seconds."}
-        if resp.status_code == 404:
-            log.warning("Model %s not found, trying next", model)
-            continue
+            if resp.status_code == 404:
+                log.warning("Model %s not found, falling back", model)
+                break  # try next model
 
-        return {"error": f"API error ({resp.status_code}): {resp.text}"}
+            if resp.status_code in (429, 503):
+                kind, value = _classify_error(resp)
+                if kind == "terminal":
+                    log.warning("Model %s: terminal quota error: %s", model, value)
+                    break  # try next model (different quota bucket possible)
+                wait = _retry_delay(attempt, value)
+                log.info("Model %s: retryable, waiting %.1fs (attempt %d/%d)",
+                         model, wait, attempt + 1, RETRY_MAX_ATTEMPTS)
+                time.sleep(wait)
+                continue
+
+            log.warning("[GEMINI] error body: %s", resp.text[:300])
+            return {"error": f"API error ({resp.status_code}): {resp.text}"}
 
     return {"error": "Service temporarily busy. Please retry in a few seconds."}
 
@@ -287,46 +362,61 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
         request_body["generationConfig"] = gen_config
 
     models = [MODEL_THINKING] if thinking else MODEL_FALLBACK
+    url = f"{ENDPOINT}/v1internal:streamGenerateContent?alt=sse"
+
     for model in models:
         body = {"model": model, "project": project_id, "request": request_body}
-        url = f"{ENDPOINT}/v1internal:streamGenerateContent?alt=sse"
-        try:
-            resp = http_requests.post(url, headers=headers, json=body, stream=True, timeout=120)
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-            return
 
-        if resp.status_code in (429, 503):
-            log.warning("Model %s rate-limited (%s), not retrying", model, resp.status_code)
-            yield f"data: {json.dumps({'error': 'Service temporarily busy. Please retry in a few seconds.'})}\n\n"
-            return
-        if resp.status_code == 404:
-            log.warning("Model %s not found, trying next", model)
-            continue
+        # Streaming uses fewer retries (ported from gemini-cli: 4 max for mid-stream)
+        max_attempts = 4
+        for attempt in range(max_attempts):
+            try:
+                resp = http_requests.post(url, headers=headers, json=body, stream=True, timeout=120)
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                return
 
-        if resp.status_code != 200:
-            yield f"data: {json.dumps({'error': resp.text})}\n\n"
-            return
+            log.info("[GEMINI-STREAM] model=%s attempt=%d status=%s", model, attempt + 1, resp.status_code)
 
-        yield f"data: {json.dumps({'model': model, 'type': 'start'})}\n\n"
+            if resp.status_code == 404:
+                log.warning("Model %s not found, falling back", model)
+                break  # try next model
 
-        for line in resp.iter_lines(decode_unicode=True):
-            if not line:
+            if resp.status_code in (429, 503):
+                kind, value = _classify_error(resp)
+                if kind == "terminal":
+                    log.warning("Model %s: terminal quota, falling back", model)
+                    break  # try next model
+                wait = _retry_delay(attempt, min(value, 10))  # shorter waits for streaming
+                log.info("Model %s: retryable, waiting %.1fs (attempt %d/%d)",
+                         model, wait, attempt + 1, max_attempts)
+                time.sleep(wait)
                 continue
-            if line.startswith("data: "):
-                raw = line[6:]
-                try:
-                    chunk = json.loads(raw)
-                    parts = chunk["response"]["candidates"][0]["content"]["parts"]
-                    text = next((p["text"] for p in parts if "text" in p and not p.get("thought")), None)
-                    if text:
-                        text = check_output_guardrails(text)
-                        yield f"data: {json.dumps({'text': text})}\n\n"
-                except (json.JSONDecodeError, KeyError, IndexError):
-                    pass
 
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-        return
+            if resp.status_code != 200:
+                yield f"data: {json.dumps({'error': resp.text})}\n\n"
+                return
+
+            # Success — stream the response
+            yield f"data: {json.dumps({'model': model, 'type': 'start'})}\n\n"
+
+            for line in resp.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                if line.startswith("data: "):
+                    raw = line[6:]
+                    try:
+                        chunk = json.loads(raw)
+                        parts = chunk["response"]["candidates"][0]["content"]["parts"]
+                        text = next((p["text"] for p in parts if "text" in p and not p.get("thought")), None)
+                        if text:
+                            text = check_output_guardrails(text)
+                            yield f"data: {json.dumps({'text': text})}\n\n"
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        pass
+
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return
 
     yield f"data: {json.dumps({'error': 'Service temporarily busy. Please retry in a few seconds.'})}\n\n"
 
@@ -344,42 +434,53 @@ def generate_image(user_id, prompt):
         "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
     }
 
-    # Image generation only works on gemini-2.0-flash-exp or gemini-2.0-flash
     image_models = ["gemini-2.0-flash-exp", "gemini-2.0-flash"]
+    url = f"{ENDPOINT}/v1internal:generateContent"
+
     for model in image_models:
         body = {"model": model, "project": project_id, "request": request_body}
-        url = f"{ENDPOINT}/v1internal:generateContent"
-        try:
-            resp = http_requests.post(url, headers=headers, json=body, timeout=120)
-        except Exception as e:
-            return None, None, f"Request failed: {e}"
 
-        if resp.status_code in (429, 503):
-            log.warning("Image model %s rate-limited (%s), not retrying", model, resp.status_code)
-            return None, None, "Service temporarily busy. Please retry in a few seconds."
+        for attempt in range(RETRY_MAX_ATTEMPTS):
+            try:
+                resp = http_requests.post(url, headers=headers, json=body, timeout=120)
+            except Exception as e:
+                return None, None, f"Request failed: {e}"
 
-        if resp.status_code != 200:
+            if resp.status_code == 200:
+                data = resp.json()
+                try:
+                    parts = data["response"]["candidates"][0]["content"]["parts"]
+                except (KeyError, IndexError):
+                    break  # try next model
+
+                image_b64 = None
+                image_mime = "image/png"
+                caption = ""
+                for part in parts:
+                    if "inline_data" in part:
+                        image_b64 = part["inline_data"]["data"]
+                        image_mime = part["inline_data"].get("mimeType", "image/png")
+                    elif "text" in part:
+                        caption = part["text"]
+
+                if image_b64:
+                    return base64.b64decode(image_b64), image_mime, caption
+                break  # no image in response, try next model
+
+            if resp.status_code in (429, 503):
+                kind, value = _classify_error(resp)
+                if kind == "terminal":
+                    break  # try next model
+                wait = _retry_delay(attempt, value)
+                log.info("Image model %s: retryable, waiting %.1fs", model, wait)
+                time.sleep(wait)
+                continue
+
+            if resp.status_code == 404:
+                break  # try next model
+
             log.warning("Image model %s returned %s: %s", model, resp.status_code, resp.text[:200])
-            continue
-
-        data = resp.json()
-        try:
-            parts = data["response"]["candidates"][0]["content"]["parts"]
-        except (KeyError, IndexError):
-            continue
-
-        image_b64 = None
-        image_mime = "image/png"
-        caption = ""
-        for part in parts:
-            if "inline_data" in part:
-                image_b64 = part["inline_data"]["data"]
-                image_mime = part["inline_data"].get("mimeType", "image/png")
-            elif "text" in part:
-                caption = part["text"]
-
-        if image_b64:
-            return base64.b64decode(image_b64), image_mime, caption
+            break  # try next model
 
     return None, None, "Image generation not available — try /api/generate/file with type=svg"
 

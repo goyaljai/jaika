@@ -34,6 +34,11 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import ipaddress
+from urllib.parse import urlparse
+import socket
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
@@ -42,6 +47,52 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 app.config["PREFERRED_URL_SCHEME"] = "https"
 
 DATA_DIR = os.environ.get("JAIKA_DATA_DIR", "./data")
+
+# ── Rate Limiting ────────────────────────────────────────────────────────────
+def _rate_limit_key():
+    """Rate limit by user ID if authenticated, else by IP."""
+    uid = _get_user_id()
+    return uid if uid else get_remote_address()
+
+limiter = Limiter(
+    app=app,
+    key_func=_rate_limit_key,
+    default_limits=["200 per minute"],       # global default for all routes
+    storage_uri="memory://",
+)
+
+# ── SSRF Protection ──────────────────────────────────────────────────────────
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),       # loopback
+    ipaddress.ip_network("10.0.0.0/8"),         # private
+    ipaddress.ip_network("172.16.0.0/12"),      # private
+    ipaddress.ip_network("192.168.0.0/16"),     # private
+    ipaddress.ip_network("169.254.0.0/16"),     # link-local / cloud metadata
+    ipaddress.ip_network("0.0.0.0/8"),          # unspecified
+    ipaddress.ip_network("::1/128"),            # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),           # IPv6 private
+    ipaddress.ip_network("fe80::/10"),          # IPv6 link-local
+]
+
+def is_safe_url(url):
+    """Block SSRF: reject URLs that resolve to private/internal IPs."""
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    # Block common dangerous hostnames
+    if hostname in ("localhost", "metadata.google.internal"):
+        return False
+    try:
+        # Resolve hostname and check all IPs
+        for info in socket.getaddrinfo(hostname, parsed.port or 80):
+            ip = ipaddress.ip_address(info[4][0])
+            for net in _BLOCKED_NETWORKS:
+                if ip in net:
+                    return False
+    except (socket.gaierror, ValueError):
+        return False  # can't resolve = block
+    return True
 
 # Register blueprints
 app.register_blueprint(auth_bp)
@@ -153,6 +204,7 @@ def me():
 # ── Prompt ──────────────────────────────────────────────────────────────────
 
 @app.route("/api/prompt", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def prompt():
     """Chat with Gemini. Supports text + file attachments via file_ids."""
@@ -211,6 +263,10 @@ def prompt():
     history = get_conversation_history(uid, session_id)
     system_instruction = build_system_instruction()
 
+    # Sliding window: keep only the last 20 turn-pairs (40 messages) to save tokens
+    MAX_HISTORY_TURNS = 20
+    history = history[-(MAX_HISTORY_TURNS * 2):]
+
     # Inject intent-based hints (code, math, creative writing, etc.)
     if prompt_text:
         from prompt_engine import detect_intent_hints
@@ -218,11 +274,14 @@ def prompt():
         if hints:
             system_instruction = (system_instruction + "\n\n" + hints).strip() if system_instruction else hints
 
-    # Inject per-user memory facts
+    # Inject per-user memory as a pinned first exchange (not in system instruction)
     facts = _load_memory(uid)
     if facts:
-        mem_block = "User memory facts:\n" + "\n".join(f"- {f}" for f in facts)
-        system_instruction = (system_instruction + "\n\n" + mem_block).strip() if system_instruction else mem_block
+        mem_msg = [
+            {"role": "user", "text": "[Memory context]\n" + "\n".join(f"- {f}" for f in facts), "files": []},
+            {"role": "model", "text": "Noted.", "files": []},
+        ]
+        history = mem_msg + history
 
     resp_mime = "application/json" if response_format == "json" else None
 
@@ -381,6 +440,7 @@ def download_uploaded_file(file_id):
 # ── STT ─────────────────────────────────────────────────────────────────────
 
 @app.route("/api/stt", methods=["POST"])
+@limiter.limit("20 per minute")
 @login_required
 def stt():
     """Speech-to-text. POST audio file as multipart 'file' field.
@@ -419,6 +479,7 @@ def stt():
 
 
 @app.route("/api/voice-prompt", methods=["POST"])
+@limiter.limit("20 per minute")
 @login_required
 def voice_prompt():
     """Audio → transcript → Gemini → response.
@@ -478,11 +539,18 @@ def voice_prompt():
     history = get_conversation_history(uid, session_id)
     system_instruction = build_system_instruction()
 
-    # Inject per-user memory facts (same as /api/prompt)
+    # Sliding window: keep only the last 20 turn-pairs
+    MAX_HISTORY_TURNS = 20
+    history = history[-(MAX_HISTORY_TURNS * 2):]
+
+    # Inject per-user memory as a pinned first exchange
     facts = _load_memory(uid)
     if facts:
-        mem_block = "User memory facts:\n" + "\n".join(f"- {f}" for f in facts)
-        system_instruction = (system_instruction + "\n\n" + mem_block).strip() if system_instruction else mem_block
+        mem_msg = [
+            {"role": "user", "text": "[Memory context]\n" + "\n".join(f"- {f}" for f in facts), "files": []},
+            {"role": "model", "text": "Noted.", "files": []},
+        ]
+        history = mem_msg + history
 
     if do_stream:
         def event_stream():
@@ -702,6 +770,7 @@ def _inc_file_gen_count(uid):
         entry["count"] += 1
 
 @app.route("/api/generate/file", methods=["POST"])
+@limiter.limit("10 per minute")
 @login_required
 def generate_file():
     """Generate a file (HTML, SVG, CSV, JSON, Python) using Gemini API."""
@@ -771,6 +840,7 @@ def generate_file():
 
 
 @app.route("/api/generate/image", methods=["POST"])
+@limiter.limit("10 per minute")
 @login_required
 def generate_image():
     """Generate an image from a text prompt using Gemini 2.0 Flash native image output.
@@ -837,6 +907,7 @@ def generate_image():
 
 
 @app.route("/api/generate/video", methods=["POST"])
+@limiter.limit("10 per minute")
 @login_required
 def generate_video():
     """Generate an animated HTML5 video from a text prompt (CSS/JS animation)."""
@@ -882,6 +953,7 @@ def generate_video():
 # ── Web Fetch ────────────────────────────────────────────────────────────────
 
 @app.route("/api/fetch", methods=["POST"])
+@limiter.limit("10 per minute")
 @login_required
 def web_fetch():
     """Fetch a URL and optionally analyse it with Gemini.
@@ -899,6 +971,10 @@ def web_fetch():
         return jsonify({"error": "url required"}), 400
     if not url.startswith(("http://", "https://")):
         return jsonify({"error": "Only http/https URLs allowed"}), 400
+
+    # SSRF protection — block internal/private IPs
+    if not is_safe_url(url):
+        return jsonify({"error": "URL resolves to a blocked address"}), 400
 
     # Fetch URL content
     try:
@@ -935,11 +1011,18 @@ def web_fetch():
     history = get_conversation_history(uid, session_id)
     system_instruction = build_system_instruction()
 
-    # Inject per-user memory facts
+    # Sliding window
+    MAX_HISTORY_TURNS = 20
+    history = history[-(MAX_HISTORY_TURNS * 2):]
+
+    # Inject per-user memory as a pinned first exchange
     facts = _load_memory(uid)
     if facts:
-        mem_block = "User memory facts:\n" + "\n".join(f"- {f}" for f in facts)
-        system_instruction = (system_instruction + "\n\n" + mem_block).strip() if system_instruction else mem_block
+        mem_msg = [
+            {"role": "user", "text": "[Memory context]\n" + "\n".join(f"- {f}" for f in facts), "files": []},
+            {"role": "model", "text": "Noted.", "files": []},
+        ]
+        history = mem_msg + history
 
     result = generate(uid, history, system_instruction=system_instruction)
     if "error" in result:
@@ -1026,6 +1109,7 @@ def memory_clear():
 # ── TTS ───────────────────────────────────────────────────────────────────────
 
 @app.route("/api/tts", methods=["POST"])
+@limiter.limit("20 per minute")
 @login_required
 def tts():
     """Text-to-speech via Gemini responseModalities AUDIO.

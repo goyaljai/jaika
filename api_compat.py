@@ -134,11 +134,18 @@ def _anthropic_messages_to_gemini(messages, system=None):
 
 
 def _resolve_model(requested):
-    """Map requested model name to a Gemini model name."""
+    """Map requested model name to a Gemini model name. Always falls back to gemini-2.5-flash."""
     if not requested:
-        return None
+        return "gemini-2.5-flash"
     lower = requested.lower()
-    return MODEL_MAP.get(lower, requested if any(lower.startswith(m) for m in ["gemini"]) else None)
+    mapped = MODEL_MAP.get(lower)
+    if mapped:
+        return mapped
+    # Accept known Gemini models as-is
+    if lower in [m.lower() for m in SUPPORTED_MODELS]:
+        return lower
+    # Unknown model → fallback
+    return "gemini-2.5-flash"
 
 
 # ── OpenAI format ─────────────────────────────────────────────────────────────
