@@ -678,10 +678,14 @@ def voice_prompt():
 # ── Output Download ──────────────────────────────────────────────────────────
 
 @app.route("/api/download/<uid>/<path:filename>")
+@login_required
 def download(uid, filename):
-    """Download a generated output file. No auth header needed — uid is in the URL.
-    Works directly in browsers and curl without X-User-Id header.
+    """Download a generated output file.
+    Requires X-User-Id header. Caller must own the file or be an admin.
     """
+    caller_uid = _user_id()
+    if caller_uid != uid and not is_admin(caller_uid):
+        return jsonify({"error": "Forbidden"}), 403
     # Prevent path traversal
     filename = os.path.basename(filename)
     if not uid or not filename:
