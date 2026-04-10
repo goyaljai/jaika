@@ -216,6 +216,26 @@ def login_shortcut():
 @login_required
 def me():
     uid = _user_id()
+
+    # Email lookup: ?email=foo@bar.com  (admin only — returns minimal public info)
+    lookup_email = request.args.get("email", "").strip().lower()
+    if lookup_email:
+        if not is_admin(uid):
+            return jsonify({"error": "Admin only"}), 403
+        from auth import get_contacts
+        contacts = get_contacts()
+        for contact_uid, info in contacts.items():
+            if info.get("email", "").lower() == lookup_email:
+                return jsonify({
+                    "user_id": contact_uid,
+                    "email": info.get("email", ""),
+                    "name": info.get("name", ""),
+                    "picture": info.get("picture", ""),
+                    "first_login": info.get("first_login"),
+                    "last_login": info.get("last_login"),
+                })
+        return jsonify({"error": "User not found"}), 404
+
     user_meta_path = os.path.join(_user_dir(), "user.json")
     if os.path.exists(user_meta_path):
         try:
@@ -312,7 +332,7 @@ def prompt():
 
     # Build conversation history from past messages (before persisting the current user message)
     history = get_conversation_history(uid, session_id)
-    system_instruction = build_system_instruction()
+    system_instruction = build_system_instruction(uid)
 
     # Sliding window: keep only the last 20 turn-pairs (40 messages) to save tokens
     MAX_HISTORY_TURNS = 20
@@ -602,7 +622,7 @@ def voice_prompt():
         session_id = sess["id"]
 
     history = get_conversation_history(uid, session_id)
-    system_instruction = build_system_instruction()
+    system_instruction = build_system_instruction(uid)
 
     # Sliding window: keep only the last 20 turn-pairs
     MAX_HISTORY_TURNS = 20
@@ -768,13 +788,15 @@ def sessions_clear_messages(session_id):
 @app.route("/api/skills", methods=["GET"])
 @login_required
 def skills_list():
-    return jsonify(list_skills())
+    uid = _user_id()
+    return jsonify(list_skills(uid))
 
 
 @app.route("/api/skills/<name>", methods=["GET"])
 @login_required
 def skills_get(name):
-    content = get_skill(name)
+    uid = _user_id()
+    content = get_skill(uid, name)
     if content is None:
         return jsonify({"error": "Skill not found"}), 404
     return jsonify({"name": name, "content": content})
@@ -797,7 +819,7 @@ def skills_upload():
     name = os.path.basename(name).replace('..', '').strip()
     if not name or not content:
         return jsonify({"error": "Name and content required"}), 400
-    if not save_skill(name, content):
+    if not save_skill(uid, name, content):
         return jsonify({"error": "Invalid skill name. Use only letters, numbers, hyphens, underscores."}), 400
     return jsonify({"name": name, "ok": True}), 201
 
@@ -808,7 +830,7 @@ def skills_delete(name):
     uid = _user_id()
     if not is_admin(uid) and not is_pro(uid):
         return jsonify({"error": "Deleting skills is a Pro feature. Upgrade at /pro"}), 403
-    if delete_skill(name):
+    if delete_skill(uid, name):
         return jsonify({"ok": True})
     return jsonify({"error": "Not found"}), 404
 
@@ -1082,7 +1104,7 @@ def web_fetch():
 
     user_msg = f"URL: {url}\n\nContent:\n{raw[:8000]}\n\n{prompt_text}"
     history = get_conversation_history(uid, session_id)
-    system_instruction = build_system_instruction()
+    system_instruction = build_system_instruction(uid)
 
     # Sliding window
     MAX_HISTORY_TURNS = 20

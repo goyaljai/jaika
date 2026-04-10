@@ -521,7 +521,19 @@ EMAIL=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)
 USER_ID=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user_id',''))" 2>/dev/null || echo "")
 
 if echo "$RESULT" | grep -q '"ok"'; then
-    echo "  Success! Signed in as $EMAIL"
+    echo ""
+    echo "  ✓ Signed in as $EMAIL"
+    echo ""
+    echo "  ┌─────────────────────────────────────────────┐"
+    echo "  │  Your User ID:                              │"
+    echo "  │  $USER_ID  │"
+    echo "  │                                             │"
+    echo "  │  Use this as X-User-Id in API calls         │"
+    echo "  └─────────────────────────────────────────────┘"
+    echo ""
+    echo "  Example:"
+    echo "  curl $SERVER/api/me -H \"X-User-Id: $USER_ID\""
+    echo ""
     echo "  Opening Jaika..."
     JAIKA_URL="$SERVER/?u=$USER_ID"
     if command -v open &>/dev/null; then

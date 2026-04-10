@@ -33,6 +33,9 @@ logs/
 *.json.tmp
 *.lock
 
+# Demo / local notes
+demo.md
+
 # Test artifacts
 .pytest_cache/
 htmlcov/

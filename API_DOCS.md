@@ -137,7 +137,6 @@ data/
 Each user's data lives entirely under `data/users/{user_id}/`. Two concurrent users share:
 - The Flask process (thread-safe; each request reads its own data)
 - The model fallback list (read-only config)
-- Skills (global, admin-managed)
 
 Nothing else is shared. User A cannot access User B's sessions, files, memory, or token.
 
@@ -511,16 +510,16 @@ Clear messages but keep the session.
 
 ### Skills
 
-Skills are named system prompt modules prepended to every chat. They're global (shared across all users for now).
+Skills are **per-user** named `.md` files stored at `data/users/{uid}/skills/`. They extend the system prompt with domain expertise for that user only.
 
 #### `GET /api/skills`
-List all skills.
+List all skills for the authenticated user.
 
 #### `GET /api/skills/<name>`
 Get skill content.
 
 #### `POST /api/skills/upload`
-Upload a skill via JSON or file.
+Upload or update a skill via JSON or file.
 
 ```bash
 # JSON
@@ -536,6 +535,59 @@ curl -X POST $SERVER/api/skills/upload \
 
 #### `DELETE /api/skills/<name>`
 Delete a skill.
+
+```bash
+curl -X DELETE $SERVER/api/skills/coding -H "X-User-Id: $UID"
+```
+
+---
+
+### `_persona` — Persona Chatbot
+
+The special skill name `_persona` **replaces** the default "You are Jaika" system instruction entirely for that user. Use it to create a custom persona chatbot — e.g., a portfolio site chatbot that answers as you.
+
+When `_persona` is active:
+- The bot answers **only** questions about the person described (career, background, projects, contact).
+- **Off-topic questions** (maths, coding help, world events, trivia) are refused with: `"That's outside what I share here — feel free to reach out to me directly!"`
+- Without `_persona`, the bot behaves as normal Jaika.
+
+```bash
+# Upload persona (creates or replaces)
+curl -X POST $SERVER/api/skills/upload \
+  -H "X-User-Id: $UID" -H "Content-Type: application/json" \
+  -d '{"name": "_persona", "content": "You are Raunak Jain, Product Leader at InMobi..."}'
+
+# Or upload from a skills.md file
+curl -X POST $SERVER/api/skills/upload \
+  -H "X-User-Id: $UID" \
+  -F "file=@skills.md" -F "name=_persona"
+
+# Test — should answer as the person
+curl -X POST $SERVER/api/prompt \
+  -H "X-User-Id: $UID" -H "Content-Type: application/json" \
+  -d '{"prompt": "Tell me about your career", "stream": false}'
+
+# Test — off-topic, should refuse
+curl -X POST $SERVER/api/prompt \
+  -H "X-User-Id: $UID" -H "Content-Type: application/json" \
+  -d '{"prompt": "What is mean and variance?", "stream": false}'
+
+# Delete persona (reverts to Jaika)
+curl -X DELETE $SERVER/api/skills/_persona -H "X-User-Id: $UID"
+```
+
+**Scope gate (automatic when `_persona` is active):**
+| Question type | Behavior |
+|---|---|
+| About the person (career, projects, background) | Answers using skills.md as sole source of truth |
+| Career fit ("Would you suit a GPM role at Meta?") | Synthesizes skills.md evidence + external role context |
+| Info not in document (placeholders, missing fields) | "Based on what I've shared, that info isn't available" |
+| Off-topic (maths, world events, trivia, coding help) | "That's outside what I share here..." |
+
+**Use case — portfolio website chatbot:**
+Visitors use the site owner's `X-User-Id` in every API call. The owner uploads `_persona` once with their bio. Visitors can then ask about the owner and the bot answers in first person. No per-visitor accounts needed.
+
+**Tip:** Generate an optimized `skills.md` using the Structured Data Architect prompt in `demo/skills_template.md`. Well-structured bullet-point facts → precise answers. Vague paragraph bios → vague answers.
 
 ---
 
@@ -762,9 +814,43 @@ curl -X DELETE $SERVER/api/admin/models/fallback/gemini-3.1-flash-lite-preview \
 ## Architecture Notes
 
 - **No CLI subprocess.** All Gemini calls go directly to `cloudcode-pa.googleapis.com/v1internal`.
-- **Per-user isolation.** All data lives under `data/users/{user_id}/` — sessions, uploads, outputs, memory, token. Two users sharing a server have zero overlap.
+- **Per-user isolation.** All data lives under `data/users/{user_id}/` — sessions, uploads, outputs, memory, token, skills. Two users sharing a server have zero overlap.
 - **Token refresh.** OAuth tokens are refreshed automatically 5 minutes before expiry.
 - **Model fallback.** On 404/429/503 admin-configurable fallback chain (default: `gemini-3-flash-preview → gemini-3.1-flash-lite-preview → gemini-2.5-flash → gemini-2.5-flash-lite`). Managed via `GET/POST /api/admin/models`, persisted to `data/models.json`, cached for 60 seconds.
 - **Brand guardrails.** Output is filtered to replace "Gemini Code Assist" → "Jaika" etc.
 - **Input guardrails.** Prompt injection patterns are blocked before hitting the model.
 - **File TTL.** Uploaded files auto-delete after 1 hour. Generated outputs after 30 minutes.
+- **Skills are per-user.** Each user has `data/users/{uid}/skills/`. No user's skills affect another user's chat.
+- **`_persona` skill.** Special skill name that replaces the default system prompt for that user. Enables persona chatbots (e.g., portfolio sites). Off-topic questions are refused automatically via scope gate prepended before the persona content.
+
+---
+
+## Deployment — Device Restart Commands
+
+Files live inside a chroot at `/data/local/linux/rootfs/opt/jaika-v2/` on each Android device.
+
+```bash
+# Push updated files into chroot (from Mac/dev machine)
+adb -s <SERIAL> push app.py /storage/emulated/0/jaika-v2/app.py
+adb -s <SERIAL> shell "su 0 sh -c 'cp /storage/emulated/0/jaika-v2/app.py /data/local/linux/rootfs/opt/jaika-v2/app.py'"
+
+# Restart jaika via supervisorctl inside chroot
+adb -s <SERIAL> shell "su 0 sh -c 'chroot /data/local/linux/rootfs /usr/bin/supervisorctl restart jaika'"
+
+# Check status
+adb -s <SERIAL> shell "su 0 sh -c 'chroot /data/local/linux/rootfs /usr/bin/supervisorctl status'"
+```
+
+**Device serials:**
+| Device | Serial |
+|---|---|
+| Device 1 (primary) | `N1VT460414` |
+| Device 2 (secondary) | `NB9AA90129` |
+
+**Two-device deploy shortcut:**
+```bash
+for SERIAL in N1VT460414 NB9AA90129; do
+  adb -s $SERIAL push skills.py /storage/emulated/0/jaika-v2/skills.py
+  adb -s $SERIAL shell "su 0 sh -c 'cp /storage/emulated/0/jaika-v2/skills.py /data/local/linux/rootfs/opt/jaika-v2/skills.py && chroot /data/local/linux/rootfs /usr/bin/supervisorctl restart jaika'"
+done
+```

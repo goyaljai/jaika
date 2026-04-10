@@ -235,7 +235,7 @@ _SEARCH_KEYWORDS = frozenset([
     # Health
     "symptoms", "outbreak", "spread", "infected", "cases",
     # General world knowledge
-    "population", "how many people", "capital of", "current president",
+    "population", "how many people", "current president",
     "who leads", "what country", "what country is",
 ])
 
