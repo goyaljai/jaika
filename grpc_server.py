@@ -1,7 +1,6 @@
 """Jaika gRPC server — bidirectional streaming chat for admin users.
 
 Runs alongside Flask on port 5245. Admin-only access.
-Uses Gemini CLI subprocess for AI responses.
 """
 
 import grpc
@@ -17,9 +16,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 import chat_pb2
 import chat_pb2_grpc
 from auth import load_token, is_admin
-from gemini import _setup_cli_creds
+from gemini import generate
 from sessions import create_session, add_message, get_conversation_history
-import subprocess
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -94,26 +92,18 @@ class JaikaChatServicer(chat_pb2_grpc.JaikaChatServicer):
                     parts.append(f"{role}: {msg['text']}")
             prompt = "\n".join(parts)
 
-            # Run Gemini CLI
-            home_dir, env = _setup_cli_creds(user_id)
-            if not home_dir:
-                yield chat_pb2.ChatResponse(
-                    text="CLI credentials not found.",
-                    status="error"
-                )
-                continue
-
+            # Call AI API
+            api_messages = [{"role": "user", "content": prompt}]
             try:
-                result = subprocess.run(
-                    ["gemini", "--prompt", prompt],
-                    capture_output=True, text=True, timeout=120,
-                    env=env, cwd=home_dir,
-                )
-                output = result.stdout.strip()
-                lines = [l for l in output.split("\n")
-                         if not l.startswith("Keychain")
-                         and not l.startswith("Using FileKeychain")]
-                text = "\n".join(lines).strip()
+                result = generate(user_id, api_messages)
+                if isinstance(result, dict) and result.get("error"):
+                    yield chat_pb2.ChatResponse(
+                        text=result["error"],
+                        session_id=session_id,
+                        status="error"
+                    )
+                    continue
+                text = (result.get("text", "") if isinstance(result, dict) else str(result)).strip()
 
                 if text:
                     # Save AI response
@@ -144,7 +134,7 @@ class JaikaChatServicer(chat_pb2_grpc.JaikaChatServicer):
                         status="error"
                     )
 
-            except subprocess.TimeoutExpired:
+            except TimeoutError:
                 yield chat_pb2.ChatResponse(
                     text="Request timed out.",
                     session_id=session_id,

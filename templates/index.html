@@ -33,8 +33,7 @@ a:hover { color: var(--accent-hover); }
 
 /* ── Login Screen ─────────────────────────────────────────── */
 #login-screen {
-  display: flex; flex-direction: row; align-items: center; justify-content: center;
-  height: 100vh; gap: 32px; padding: 24px 16px 24px 28px;
+  display: flex; flex-direction: column; height: 100vh; overflow: hidden;
 }
 #login-screen .login-left {
   flex: 0 0 340px; display: flex; flex-direction: column; justify-content: center;
@@ -370,20 +369,45 @@ a:hover { color: var(--accent-hover); }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
+/* ── Docs Page Mobile ────────────────────────────────────── */
+@media (max-width: 640px) {
+  #docs-nav-toggle { display: inline-flex !important; }
+  .docs-sidenav { position: fixed; left: -220px; top: 52px; bottom: 0; z-index: 50; transition: left .2s; box-shadow: none; }
+  .docs-sidenav.open { left: 0; box-shadow: 4px 0 16px rgba(0,0,0,.5); }
+  .docs-main { padding: 16px 14px 60px !important; }
+  .ep-desc-inline { display: none !important; }
+  .upgrade-banner { flex-direction: column; gap: 12px; padding: 16px; }
+}
+
+/* ── Landing Page Mobile ──────────────────────────────────── */
+@media (max-width: 640px) {
+  html, body { height: auto; overflow: auto; -webkit-overflow-scrolling: touch; }
+  #login-screen { height: auto; min-height: 100vh; overflow: visible; }
+  .lp-nav { padding: 12px 16px !important; }
+  .lp-nav-pills > span { display: none !important; }
+  .lp-main { flex: none !important; flex-direction: column !important; gap: 20px !important; padding: 20px 16px !important; align-items: stretch !important; justify-content: flex-start !important; }
+  .lp-left { flex: none !important; width: 100% !important; }
+  .lp-left h1 { font-size: 30px !important; letter-spacing: -1px !important; margin-bottom: 12px !important; }
+  .lp-left > p { font-size: 15px !important; margin-bottom: 18px !important; }
+  .lp-right { flex: none !important; width: 100% !important; }
+  .lp-bottom { padding: 10px 16px !important; flex-direction: column !important; gap: 8px !important; align-items: flex-start !important; }
+  .lp-chips { flex-wrap: wrap !important; gap: 8px !important; }
+}
 </style>
 </head>
 <body>
 
 <!-- Login / Landing Screen -->
-<div id="login-screen" style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+<div id="login-screen">
 
   <!-- Thin accent bar at top (Lattice-style) -->
   <div style="height:3px;background:linear-gradient(90deg,var(--accent),var(--green),#d4a017,var(--accent));flex-shrink:0"></div>
 
   <!-- Nav — same max-width and padding as content so Jaika aligns with headline -->
-  <div style="max-width:1060px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;flex-shrink:0;border-bottom:1px solid var(--border)">
+  <div class="lp-nav" style="max-width:1060px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;flex-shrink:0;border-bottom:1px solid var(--border)">
     <div style="font-size:22px;font-weight:700;display:flex;align-items:center;gap:10px"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block"></span>Jaika</div>
-    <div style="display:flex;align-items:center;gap:18px">
+    <div class="lp-nav-pills" style="display:flex;align-items:center;gap:18px">
       <span style="font-size:14px;color:var(--text2)">30+ endpoints</span>
       <span style="font-size:14px;color:var(--text2)">3 SDK routers</span>
       <span style="font-size:14px;color:var(--text2)">Self-hosted</span>
@@ -392,10 +416,10 @@ a:hover { color: var(--accent-hover); }
   </div>
 
   <!-- Main content — vertically centered, two columns -->
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:0 24px;gap:40px;min-height:0;max-width:1060px;margin:0 auto;width:100%">
+  <div class="lp-main" style="flex:1;display:flex;align-items:center;justify-content:center;padding:0 24px;gap:40px;min-height:0;max-width:1060px;margin:0 auto;width:100%">
 
     <!-- Left column: copy -->
-    <div style="flex:0 1 480px;min-width:0">
+    <div class="lp-left" style="flex:0 1 480px;min-width:0">
       <h1 style="font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1.06;margin-bottom:18px">The AI platform<br><span style="font-style:italic;background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">builders love</span></h1>
       <p style="font-size:19px;color:var(--text2);line-height:1.5;margin-bottom:28px">Build with AI for free. Chat, files, memory, generation — 30+ REST endpoints. Drop-in OpenAI, Anthropic, and Gemini SDK support.</p>
 
@@ -426,7 +450,7 @@ a:hover { color: var(--accent-hover); }
     </div>
 
     <!-- Right column: stacked API cards -->
-    <div style="flex:0 1 460px;min-width:0;display:flex;flex-direction:column;gap:10px">
+    <div class="lp-right" style="flex:0 1 460px;min-width:0;display:flex;flex-direction:column;gap:10px">
 
       <!-- Card: Chat -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden">
@@ -478,8 +502,8 @@ resp = client.chat.completions.create(
   </div>
 
   <!-- Bottom bar -->
-  <div style="max-width:1060px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-top:1px solid var(--border);flex-shrink:0">
-    <div style="display:flex;align-items:center;gap:16px">
+  <div class="lp-bottom" style="max-width:1060px;margin:0 auto;width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-top:1px solid var(--border);flex-shrink:0">
+    <div class="lp-chips" style="display:flex;align-items:center;gap:16px">
       <span style="font-size:11px;color:var(--text2)">💬 Chat</span>
       <span style="font-size:11px;color:var(--text2)">📎 Files</span>
       <span style="font-size:11px;color:var(--text2)">🧠 Memory</span>
@@ -497,7 +521,10 @@ resp = client.chat.completions.create(
 <div id="public-page">
   <div class="docs-shell">
     <div class="docs-topbar">
-      <div class="docs-brand"><span class="brand-dot"></span>Jaika API</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="docs-nav-toggle" onclick="document.querySelector('.docs-sidenav').classList.toggle('open')" style="display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:2px 4px;line-height:1">&#9776;</button>
+        <div class="docs-brand"><span class="brand-dot"></span>Jaika API</div>
+      </div>
       <div class="docs-topbar-right" id="docs-topbar-right"></div>
     </div>
     <div class="docs-body">
