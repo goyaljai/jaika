@@ -167,78 +167,65 @@ _INTENT_PATTERNS = [
 # benefit from Google Search grounding. We detect these via keyword patterns.
 
 _SEARCH_KEYWORDS = frozenset([
-    # Temporal signals — strong indicator something time-sensitive is being asked
+    # Temporal signals
     "today", "yesterday", "right now", "currently", "at the moment",
     "this week", "this month", "this year", "last week", "last month", "last year",
-    "latest", "recent", "recently", "current", "currently", "now", "live",
+    "latest", "recent", "recently", "current", "live",
     "real-time", "realtime", "up to date", "up-to-date", "as of", "in 2024",
-    "in 2025", "in 2026", "breaking", "just announced", "just released",
-    "right now", "at present", "presently", "ongoing", "active",
+    "in 2025", "in 2026", "in 2027", "breaking", "just announced", "just released", "ongoing",
     # News & events
     "news", "headline", "headlines", "breaking news", "top stories",
     "what happened", "what's happening", "what is happening",
-    "announcement", "announced", "announced today",
-    "update", "updates", "updated", "new update",
-    "report", "reports", "reported", "reporting",
-    "event", "events", "incident", "incidents", "crisis", "situation",
+    "announced today", "incident", "incidents", "crisis",
     "conflict", "war", "attack", "protest", "riots", "strike",
-    "summit", "conference", "meeting", "treaty", "agreement",
+    "summit", "conference", "treaty",
     "disaster", "earthquake", "flood", "wildfire", "hurricane", "tornado", "typhoon",
     # Finance & markets
     "stock", "stocks", "market", "markets", "share price", "share prices",
     "crypto", "bitcoin", "btc", "ethereum", "eth", "nft", "defi",
-    "price", "prices", "cost", "value", "worth", "valuation",
+    "price", "prices", "valuation",
     "nasdaq", "dow jones", "s&p", "s&p 500", "ftse", "nifty", "sensex",
     "interest rate", "inflation", "recession", "gdp", "economy",
     "ipo", "earnings", "revenue", "profit", "loss", "quarter",
     "dollar", "euro", "pound", "yen", "currency", "exchange rate",
     "gold", "oil", "commodity", "commodities",
     # Sports & competitions
-    "score", "scores", "result", "results", "standings", "ranking", "rankings",
+    "score", "scores", "standings", "ranking", "rankings",
     "winner", "won", "lost", "defeated", "champion", "championship",
     "world cup", "super bowl", "olympics", "grand slam", "playoffs",
-    "tournament", "league", "match", "game", "series",
+    "tournament", "league", "match",
     "nfl", "nba", "nhl", "mlb", "fifa", "ipl", "premier league",
     "who won", "who lost", "who scored", "final score",
     # Politics & government
     "election", "elections", "vote", "voted", "voting", "ballot",
     "president", "prime minister", "chancellor", "senator", "congressman",
-    "government", "policy", "bill", "law", "legislation", "regulation",
+    "government", "legislation", "regulation",
     "congress", "senate", "parliament", "cabinet", "supreme court",
-    "approved", "passed", "signed", "vetoed", "enacted",
     "tariff", "sanction", "sanctions", "ban", "banned",
     # People & public figures
-    "who is", "who are", "who was", "ceo", "founder", "director",
-    "celebrity", "famous", "star", "actor", "actress", "singer", "athlete",
+    "ceo", "founder",
+    "celebrity", "actor", "actress", "singer", "athlete",
     "died", "death", "passed away", "arrested", "convicted", "sentenced",
-    "married", "divorced", "pregnant", "born", "birthday",
-    # Products & technology launches
-    "release", "released", "launch", "launched", "announced",
-    "new version", "update", "upgrade", "available", "out now",
-    "iphone", "android", "samsung", "apple", "google", "microsoft",
-    "openai", "gpt", "chatgpt", "gemini", "claude",
-    "specs", "specification", "review", "hands-on",
+    "married", "divorced", "pregnant",
+    # Products & technology
+    "launch", "launched", "new version", "upgrade", "out now",
+    "android", "apple", "google",
     # Science & research
-    "study", "research", "discovered", "found", "scientists",
-    "published", "journal", "paper", "breakthrough", "treatment",
+    "discovered", "scientists", "published", "breakthrough",
     "vaccine", "drug", "trial", "covid", "pandemic", "virus",
-    "nasa", "space", "launch", "mission", "planet", "asteroid",
+    "nasa", "space", "mission",
     # Weather & environment
-    "weather", "forecast", "temperature", "rain", "snow", "storm",
-    "climate", "warming", "emission", "emissions",
-    "hurricane", "flood", "drought", "fire", "wildfire",
+    "weather", "forecast", "temperature", "storm",
+    "climate", "warming", "drought",
     # Culture & entertainment
     "box office", "oscar", "emmy", "grammy", "billboard",
-    "chart", "charts", "trending", "viral", "meme",
-    "premiere", "release date", "trailer", "streaming",
-    # Travel & logistics
+    "trending", "viral", "premiere", "release date", "trailer", "streaming",
+    # Travel
     "flight", "flights", "delay", "cancelled", "airport",
-    "traffic", "road", "route", "open", "closed",
     # Health
-    "symptoms", "outbreak", "spread", "infected", "cases",
+    "symptoms", "outbreak",
     # General world knowledge
-    "population", "how many people", "current president",
-    "who leads", "what country", "what country is",
+    "population", "current president", "who leads",
 ])
 
 # Quick-hit patterns: regex for things hard to catch with word matching
@@ -253,6 +240,18 @@ _SEARCH_PATTERNS = [
 ]
 
 
+# Pre-compiled prefix regex: matches any word that *starts with* a single-word keyword
+# e.g. "launch" → matches launch/launching/launched/launches
+_single_kw = sorted(
+    (kw for kw in _SEARCH_KEYWORDS if ' ' not in kw and len(kw) >= 4),
+    key=len, reverse=True,  # longest first avoids partial shadowing
+)
+_SEARCH_PREFIX_RE = re.compile(
+    r'\b(' + '|'.join(re.escape(k) for k in _single_kw) + r')\w*\b',
+    re.IGNORECASE,
+)
+
+
 def detect_search_intent(prompt: str) -> bool:
     """Return True if the prompt likely needs real-time web data to answer well.
 
@@ -261,11 +260,14 @@ def detect_search_intent(prompt: str) -> bool:
     Fast O(n) scan — no ML, no external calls.
     """
     lower = prompt.lower()
-    # Word-boundary keyword scan
+    # Word-boundary keyword scan (exact)
     words = re.split(r'\W+', lower)
     word_set = set(words)
-    # Single-word hits
     if word_set & _SEARCH_KEYWORDS:
+        return True
+    # Prefix scan: keyword "launch" matches "launching", "launched", "launches"
+    # Only single-word keywords with 4+ chars to avoid false positives
+    if _SEARCH_PREFIX_RE.search(lower):
         return True
     # Multi-word phrase hits
     for kw in _SEARCH_KEYWORDS:
