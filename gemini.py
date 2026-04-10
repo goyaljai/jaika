@@ -16,6 +16,50 @@ from auth import get_access_token
 log = logging.getLogger(__name__)
 
 ENDPOINT = "https://cloudcode-pa.googleapis.com"
+SERP_SEARCH_ENDPOINT = "https://serpapi.com/search.json"
+
+
+def serp_search(query: str) -> dict:
+    """Call SerpAPI Google AI Mode. Returns {markdown, sources} or empty dict on failure."""
+    api_key = os.environ.get("SERP_API_KEY", "")
+    if not api_key:
+        log.warning("[SERP] SERP_API_KEY not set")
+        return {}
+    try:
+        resp = http_requests.get(
+            SERP_SEARCH_ENDPOINT,
+            params={"q": query, "api_key": api_key, "engine": "google_ai_mode"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            log.warning("[SERP] search failed status=%s body=%s", resp.status_code, resp.text[:200])
+            return {}
+        data = resp.json()
+        markdown = data.get("reconstructed_markdown", "")
+        sources = [
+            {"title": r.get("title", ""), "url": r.get("link", "")}
+            for r in data.get("references", [])
+        ]
+        log.info("[SERP] query=%r markdown_len=%d sources=%d", query[:60], len(markdown), len(sources))
+        return {"markdown": markdown, "sources": sources}
+    except Exception as e:
+        log.warning("[SERP] exception: %s", e)
+        return {}
+
+
+def _build_grounding_context(search_result: dict) -> str:
+    """Format SerpAPI Google AI Mode result as context for the model."""
+    if not search_result:
+        return ""
+    lines = ["Current web information (use this for an up-to-date answer):\n"]
+    if search_result.get("markdown"):
+        lines.append(search_result["markdown"])
+    if search_result.get("sources"):
+        lines.append("\nSources:")
+        for s in search_result["sources"]:
+            lines.append(f"- {s['title']}: {s['url']}")
+    lines.append("\nUse the above to answer accurately. Cite sources where relevant.")
+    return "\n".join(lines)
 CLI_VERSION = "0.36.0"
 
 # Defaults — used when no models.json exists yet
@@ -365,12 +409,24 @@ def generate(user_id, messages, files=None, system_instruction=None,
     contents = _build_contents(messages, files)
     project_id = _get_project_id(user_id)
 
+    # If grounding requested, fetch web results and inject as context
+    grounding_results = []
+    if grounding:
+        last_user_text = next(
+            (m["text"] for m in reversed(messages) if m.get("role") == "user" and m.get("text")),
+            None,
+        )
+        if last_user_text:
+            grounding_results = serp_search(last_user_text)
+        if grounding_results:
+            web_ctx = _build_grounding_context(grounding_results)
+            existing_si = system_instruction or ""
+            combined_si = (existing_si + "\n\n" + web_ctx).strip() if existing_si else web_ctx
+            system_instruction = combined_si
+
     request_body = {"contents": contents}
     if system_instruction:
         request_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
-
-    if grounding:
-        request_body["tools"] = [{"googleSearch": {}}]
 
     # Base gen_config (no thinkingConfig) — used by fallback models
     base_gen_config = {}
@@ -385,7 +441,10 @@ def generate(user_id, messages, files=None, system_instruction=None,
         thinking_gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
 
     cfg = get_model_config()
-    if thinking:
+    if grounding:
+        # Use regular fallback models with Brave Search context injected above
+        model_plan = [(m, False) for m in cfg["fallback"]]
+    elif thinking:
         # Try thinking model first; fall back to regular chain without thinking
         seen = set()
         model_plan = []
@@ -443,6 +502,8 @@ def generate(user_id, messages, files=None, system_instruction=None,
                 result = {"text": check_output_guardrails(text)}
                 if grounding_meta:
                     result["grounding"] = grounding_meta
+                elif grounding_results:
+                    result["grounding"] = {"sources": grounding_results.get("sources", [])}
                 return result
 
             if resp.status_code == 401:
@@ -495,12 +556,23 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
     contents = _build_contents(messages, files)
     project_id = _get_project_id(user_id)
 
+    # If grounding requested, fetch web results and inject as context
+    grounding_results = []
+    if grounding:
+        last_user_text = next(
+            (m["text"] for m in reversed(messages) if m.get("role") == "user" and m.get("text")),
+            None,
+        )
+        if last_user_text:
+            grounding_results = serp_search(last_user_text)
+        if grounding_results:
+            web_ctx = _build_grounding_context(grounding_results)
+            existing_si = system_instruction or ""
+            system_instruction = (existing_si + "\n\n" + web_ctx).strip() if existing_si else web_ctx
+
     request_body = {"contents": contents}
     if system_instruction:
         request_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
-
-    if grounding:
-        request_body["tools"] = [{"googleSearch": {}}]
 
     base_gen_config = {}
     if response_mime_type:
@@ -513,7 +585,10 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
         thinking_gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
 
     cfg = get_model_config()
-    if thinking:
+    if grounding:
+        # Brave Search results already injected as context above; use regular models
+        model_plan = [(m, False) for m in cfg["fallback"]]
+    elif thinking:
         seen = set()
         model_plan = []
         for m, use_t in [(cfg["thinking"], True)] + [(m, False) for m in cfg["fallback"]]:
@@ -592,6 +667,7 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
             log.info("[STREAM] uid=%s model=%s%s ttfb=%dms", user_id, model, fallback_note, ttfb_ms)
             yield f"data: {json.dumps({'model': model, 'type': 'start'})}\n\n"
 
+            grounding_meta = None
             for line in resp.iter_lines(decode_unicode=True):
                 if not line:
                     continue
@@ -599,17 +675,27 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
                     raw = line[6:]
                     try:
                         chunk = json.loads(raw)
-                        parts = chunk["response"]["candidates"][0]["content"]["parts"]
+                        candidate = chunk["response"]["candidates"][0]
+                        parts = candidate["content"]["parts"]
                         text = next((p["text"] for p in parts if "text" in p and not p.get("thought")), None)
                         if text:
                             text = check_output_guardrails(text)
                             yield f"data: {json.dumps({'text': text})}\n\n"
+                        # Capture grounding metadata if present (may appear in any chunk)
+                        gm = candidate.get("groundingMetadata")
+                        if gm:
+                            grounding_meta = gm
                     except (json.JSONDecodeError, KeyError, IndexError):
                         pass
 
             total_ms = int((time.time() - _t0) * 1000)
             log.info("[STREAM] uid=%s model=%s done total=%dms", user_id, model, total_ms)
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            done_payload = {'type': 'done'}
+            if grounding_meta:
+                done_payload['grounding'] = grounding_meta
+            elif grounding_results:
+                done_payload['grounding'] = {'sources': grounding_results.get('sources', [])}
+            yield f"data: {json.dumps(done_payload)}\n\n"
             return
 
     log.error("[STREAM] uid=%s all models exhausted tried=%s", user_id, _models_tried)

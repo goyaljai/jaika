@@ -347,6 +347,8 @@ a:hover { color: var(--accent-hover); }
 .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .upload-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .upload-btn:hover { background: var(--border); }
+#mic-btn.recording { background: rgba(220,50,50,0.15); border-color: #dc3232; color: #dc3232; animation: mic-pulse 1s ease-in-out infinite; }
+@keyframes mic-pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 .file-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; }
 .file-chip .remove { cursor: pointer; color: var(--red); font-weight: bold; }
@@ -421,7 +423,7 @@ a:hover { color: var(--accent-hover); }
     <!-- Left column: copy -->
     <div class="lp-left" style="flex:0 1 480px;min-width:0">
       <h1 style="font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1.06;margin-bottom:18px">The AI platform<br><span style="font-style:italic;background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent">builders love</span></h1>
-      <p style="font-size:19px;color:var(--text2);line-height:1.5;margin-bottom:28px">Build with AI for free. Chat, files, memory, generation — 30+ REST endpoints. Drop-in OpenAI, Anthropic, and Gemini SDK support.</p>
+      <p style="font-size:19px;color:var(--text2);line-height:1.5;margin-bottom:28px">Build with AI for free. Chat, files, memory, generation — 30+ REST endpoints. Drop-in OpenAI and Anthropic SDK support.</p>
 
       <!-- Sign in — primary CTA -->
       <p style="font-size:16px;color:var(--text);font-weight:600;margin-bottom:10px">Sign in with Google — run in your terminal:</p>
@@ -610,6 +612,7 @@ resp = client.chat.completions.create(
         <div class="input-row">
           <button class="upload-btn" onclick="document.getElementById('file-input').click()">&#128206;</button>
           <input type="file" id="file-input" multiple hidden onchange="handleFiles(this.files)">
+          <button class="upload-btn" id="mic-btn" onclick="toggleRecording()" title="Voice input" style="display:none">&#127908;</button>
           <textarea id="prompt-input" placeholder="Send a message..." rows="1"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
             oninput="autoResize(this)"></textarea>
@@ -1164,6 +1167,9 @@ function showApp(user) {
   loadSessions();
   document.getElementById('admin-panel').style.display = 'block';
   loadAdminEmails();
+  if (user.is_admin || user.is_pro) {
+    document.getElementById('mic-btn').style.display = 'inline-flex';
+  }
 }
 
 function renderUser(user) {
@@ -1565,8 +1571,15 @@ async function loadVitals() {
   }
 }
 
-function downloadAllData() {
-  window.open('/api/admin/contacts?format=download', '_blank');
+async function downloadAllData() {
+  var r = await apiFetch('/api/admin/contacts?format=download');
+  if (!r.ok) { alert('Export failed: ' + r.status); return; }
+  var blob = await r.blob();
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jaika-contacts.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 async function cleanUserSessions(uid) {
@@ -1656,7 +1669,7 @@ async function sendMessage() {
   input.value = '';
   autoResize(input);
 
-  var payload = { prompt: text, session_id: currentSession, stream: true, files: uploadedFiles.map(function(f) { return {path: f.path, name: f.name}; }) };
+  var payload = { prompt: text, session_id: currentSession, stream: true, file_ids: uploadedFiles.map(function(f) { return f.file_id; }) };
   uploadedFiles = [];
   document.getElementById('file-preview').innerHTML = '';
   isStreaming = true;
@@ -1688,7 +1701,10 @@ async function sendMessage() {
           if (d.type === 'session' && d.session_id) { currentSession = d.session_id; }
           else if (d.error) { modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(d.error) + '</span>'; }
           else if (d.text) { fullText += d.text; modelDiv.innerHTML = renderMd(fullText); document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight; }
-          else if (d.type === 'done') { try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {} }
+          else if (d.type === 'done') {
+            try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {}
+            if (d.grounding && d.grounding.sources) { renderSources(d.grounding.sources, modelDiv); }
+          }
           else if (d.type === 'suggest_grounding') { showGroundingSuggestion(d.prompt, d.session_id); }
         } catch(e) {}
       }
@@ -1705,6 +1721,17 @@ async function sendMessage() {
     isStreaming = false;
     document.getElementById('send-btn').disabled = false;
   }
+}
+
+function renderSources(sources, container) {
+  if (!sources || !sources.length) return;
+  var div = document.createElement('div');
+  div.style.cssText = 'margin-top:10px;padding:8px 12px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.15);border-radius:8px;font-size:12px;color:var(--text2)';
+  div.innerHTML = '<div style="font-weight:600;margin-bottom:6px;color:var(--accent)">🔍 Sources</div>' +
+    sources.slice(0, 8).map(function(s, i) {
+      return '<div style="margin-bottom:3px">[' + (i+1) + '] <a href="' + escHtml(s.url || s.link || '') + '" target="_blank" style="color:var(--accent);text-decoration:none">' + escHtml(s.title || s.url || s.link || 'Source') + '</a></div>';
+    }).join('');
+  container.appendChild(div);
 }
 
 function showGroundingSuggestion(prompt, sessionId) {
@@ -1757,7 +1784,10 @@ async function searchWithGrounding() {
           var d = JSON.parse(lines[i].slice(6));
           if (d.error) { modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(d.error) + '</span>'; }
           else if (d.text) { fullText += d.text; modelDiv.innerHTML = renderMd(fullText); document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight; }
-          else if (d.type === 'done') { try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {} }
+          else if (d.type === 'done') {
+            try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {}
+            if (d.grounding && d.grounding.sources) { renderSources(d.grounding.sources, modelDiv); }
+          }
         } catch(e) {}
       }
     }
@@ -1769,6 +1799,55 @@ async function searchWithGrounding() {
   }
 }
 
+// ── Voice recorder ─────────────────────────────────────────
+var mediaRecorder = null;
+var audioChunks = [];
+
+async function toggleRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  var stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({audio: true});
+  } catch(e) {
+    alert('Microphone access denied.');
+    return;
+  }
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = async function() {
+    stream.getTracks().forEach(function(t) { t.stop(); });
+    var btn = document.getElementById('mic-btn');
+    btn.classList.remove('recording');
+    btn.textContent = '⏳';
+    btn.disabled = true;
+    var blob = new Blob(audioChunks, {type: 'audio/webm'});
+    var form = new FormData();
+    form.append('file', blob, 'recording.webm');
+    try {
+      var r = await apiFetch('/api/stt', {method: 'POST', body: form});
+      var d = await r.json();
+      if (d.text) {
+        var input = document.getElementById('prompt-input');
+        input.value = (input.value ? input.value + ' ' : '') + d.text;
+        autoResize(input);
+        input.focus();
+      } else {
+        alert(d.error || 'Transcription failed');
+      }
+    } catch(e) { alert('STT request failed'); }
+    btn.textContent = '\uD83C\uDF08';  // reset
+    btn.textContent = '🎤';
+    btn.disabled = false;
+  };
+  mediaRecorder.start();
+  document.getElementById('mic-btn').classList.add('recording');
+  document.getElementById('mic-btn').textContent = '⏹';
+}
+
 // ── Files ──────────────────────────────────────────────────
 async function handleFiles(fileList) {
   for (var i = 0; i < fileList.length; i++) {
@@ -1777,7 +1856,7 @@ async function handleFiles(fileList) {
     try {
       var r = await apiFetch('/api/upload', {method: 'POST', body: formData});
       var d = await r.json();
-      uploadedFiles.push({path: d.path, name: d.name});
+      uploadedFiles.push({file_id: d.file_id, name: d.name});
       renderFilePreview();
     } catch(e) {}
   }

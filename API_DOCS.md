@@ -218,6 +218,7 @@ The user ID is obtained after the one-time Google OAuth login (`curl -sL https:/
 | Memory (facts) | ✅ | ✅ | ✅ |
 | Web fetch | ✅ | ✅ | ✅ |
 | Skills (read) | ✅ | ✅ | ✅ |
+| **Web Search & Grounding** | ❌ | ✅ | ✅ |
 | PDF generation | ❌ | ✅ | ✅ |
 | STT (speech-to-text) | ❌ | ✅ | ✅ |
 | TTS (text-to-speech) | ❌ | ✅ | ✅ |
@@ -285,7 +286,7 @@ data: {"type": "done"}
 
 **Notes:**
 - If no `session_id` is given, a new session is created and its ID is returned.
-- `grounding: true` enables Google Search — response includes `groundingMetadata`.
+- `grounding: true` enables real-time web search via SerpAPI — response includes `grounding.sources`. **Pro/Admin only.**
 - `thinking: true` uses the configured thinking model (default: `gemini-3-flash-preview`) with extended reasoning.
 - `response_format: "json"` tells Gemini to output valid JSON.
 - Per-user memory facts are automatically injected into the system prompt.

@@ -140,9 +140,9 @@ Each user request maps to Gemini API calls as follows:
 | `POST /api/fetch` (no prompt) | 0 | Raw fetch only, no LLM |
 | `POST /api/generate/file` | 1 | File generation via generate |
 | `POST /api/generate/image` | 1-2 | Native image; SVG fallback if failed |
-| `POST /v1/chat/completions` | 1 | OpenAI compat → generate/stream |
-| `POST /v1/messages` | 1 | Anthropic compat → generate |
-| `POST /v1beta/.../generateContent` | 1 | Gemini native compat → generate |
+| `POST /v1/chat/completions` | 1–2 | OpenAI compat → generate/stream. +1 SerpAPI if `grounding: true` |
+| `POST /v1/messages` | 1–2 | Anthropic compat → generate. +1 SerpAPI if `grounding: true` |
+| `POST /v1beta/.../generateContent` | 1–2 | Gemini native compat → generate. +1 SerpAPI if `grounding: true` |
 
 **Overhead calls (not per-request):**
 - `loadCodeAssist` — 1 call per user per hour (project discovery, cached)
@@ -224,3 +224,4 @@ Tests use a 1s delay between LLM calls. The server's retry logic handles rate li
 | `SECRET_KEY` | Flask session secret | Random |
 | `DATA_DIR` | Storage directory | `./data` |
 | `PORT` | Server port | `5244` |
+| `SERP_API_KEY` | SerpAPI key for web search grounding (Pro feature) | — |

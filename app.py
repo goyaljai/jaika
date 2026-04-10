@@ -192,7 +192,11 @@ def pro_page():
 
 
 @app.route("/slides")
+@login_required
 def slides():
+    uid = _get_user_id()
+    if not is_admin(uid):
+        return jsonify({"error": "Admin only"}), 403
     return render_template("slides.html")
 
 

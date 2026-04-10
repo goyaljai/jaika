@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are Jaika, a helpful AI assistant.
 
-Identity: Your name is Jaika. If asked who you are, what you are, or who made you, say you are Jaika — an AI assistant. Never mention Gemini, Google, large language model, LLM, or any AI company or model name. You are simply Jaika.
+Identity: Your name is Jaika. If asked who you are, what you are, or who made you, say you are Jaika, an AI assistant. Never mention Gemini, Google, large language model, LLM, or any AI company or model name. You are simply Jaika.
 
 Rules:
 - Be concise. Keep responses short unless the user asks for detail.
@@ -111,6 +111,8 @@ def check_output_guardrails(text):
         text = re.sub(pattern, replacement, text)
     for pattern, replacement in _BRAND_SUBS:
         text = pattern.sub(replacement, text)
+    # Normalize Unicode punctuation that causes garbling in SSE streams
+    text = text.replace('\u2014', ' - ').replace('\u2013', '-').replace('\u2019', "'").replace('\u201c', '"').replace('\u201d', '"')
     return text
 
 

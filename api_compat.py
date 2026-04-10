@@ -186,11 +186,12 @@ def openai_chat_completions():
         if not is_safe:
             return jsonify({"error": {"message": safety_msg, "type": "invalid_request_error"}}), 400
 
+    grounding = bool(data.get("grounding", False))
+
     if do_stream:
         def _gen():
             chunk_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
             ts = int(time.time())
-            # opening chunk with role
             opening = {
                 "id": chunk_id, "object": "chat.completion.chunk",
                 "created": ts, "model": model,
@@ -198,7 +199,7 @@ def openai_chat_completions():
             }
             yield f"data: {json.dumps(opening)}\n\n"
 
-            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction):
+            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding):
                 if not raw.startswith("data: "):
                     continue
                 try:
@@ -228,7 +229,7 @@ def openai_chat_completions():
         )
 
     # Non-streaming
-    result = generate(uid, gemini_msgs, system_instruction=system_instruction)
+    result = generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding)
     if "error" in result:
         return jsonify({"error": {"message": result["error"], "type": "api_error"}}), 502
 
@@ -272,17 +273,16 @@ def anthropic_messages():
         if not is_safe:
             return jsonify({"type": "error", "error": {"type": "invalid_request_error", "message": safety_msg}}), 400
 
+    grounding = bool(data.get("grounding", False))
     msg_id = f"msg_{uuid.uuid4().hex[:12]}"
 
     if do_stream:
         def _gen():
             ts = int(time.time())
-            # message_start
             yield f"event: message_start\ndata: {json.dumps({'type':'message_start','message':{'id':msg_id,'type':'message','role':'assistant','content':[],'model':model,'stop_reason':None,'usage':{'input_tokens':0,'output_tokens':0}}})}\n\n"
-            # content_block_start
             yield f"event: content_block_start\ndata: {json.dumps({'type':'content_block_start','index':0,'content_block':{'type':'text','text':''}})}\n\n"
 
-            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction):
+            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding):
                 if not raw.startswith("data: "):
                     continue
                 try:
@@ -303,7 +303,7 @@ def anthropic_messages():
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    result = generate(uid, gemini_msgs, system_instruction=system_instruction)
+    result = generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding)
     if "error" in result:
         return jsonify({"type": "error", "error": {"type": "api_error", "message": result["error"]}}), 502
 
@@ -380,9 +380,11 @@ def gemini_generate(model_action):
         if not is_safe:
             return jsonify({"error": {"message": safety_msg}}), 400
 
+    grounding = bool(data.get("grounding", False))
+
     if do_stream:
         def _gen():
-            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction):
+            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding):
                 if not raw.startswith("data: "):
                     continue
                 try:
@@ -407,7 +409,7 @@ def gemini_generate(model_action):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    result = generate(uid, gemini_msgs, system_instruction=system_instruction)
+    result = generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding)
     if "error" in result:
         return jsonify({"error": {"message": result["error"]}}), 502
 

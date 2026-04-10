@@ -247,7 +247,7 @@
     <div class="pulse-ring"></div>
     <div class="pulse-ring"></div>
     <h1 class="glow anim-up" style="font-size:clamp(3.5rem,10vw,7rem);letter-spacing:-2px">Jaika</h1>
-    <p class="lead anim-up2" style="margin-top:.8rem">Your own AI backend, powered by your Google account</p>
+    <p class="lead anim-up2" style="margin-top:.8rem">Your own AI backend, powered by your account</p>
     <div class="anim-up3" style="margin-top:1.2rem;display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
       <span class="tag accent">Free to start</span>
       <span class="tag green">Your quota</span>
@@ -259,7 +259,7 @@
   <div class="slide grad-tr" data-slide="1">
     <h2 class="anim-up">What is Jaika?</h2>
     <ul class="features anim-up2">
-      <li>A <strong class="accent">ready-to-use AI backend</strong> powered by Google Gemini</li>
+      <li>A <strong class="accent">ready-to-use AI backend</strong> — no setup required</li>
       <li>Sign in with Google &mdash; uses <strong class="green">your own free quota</strong></li>
       <li>No API keys, no billing, no setup</li>
       <li>REST API + Chat UI &mdash; works from <strong class="accent">curl, Python, browser</strong></li>
@@ -271,11 +271,11 @@
   <div class="slide grad-center" data-slide="2">
     <h2 class="anim-up"><span class="green">Free Tier</span> &mdash; Start Building Now</h2>
     <ul class="features green-dots anim-up2">
-      <li>Unlimited AI chat via <strong>your Google account</strong></li>
+      <li>Unlimited AI chat via <strong>your account</strong></li>
       <li>REST API with streaming (SSE)</li>
-      <li>Session memory across requests</li>
-      <li>5 file generations per session</li>
-      <li>Skills system for custom AI behavior</li>
+      <li>Session memory &amp; file uploads</li>
+      <li>5 file generations &mdash; HTML, SVG, CSV, Python, JSON</li>
+      <li>50 MB storage &amp; Skills system</li>
       <li><strong>Free forever</strong> &mdash; just sign in with Google</li>
     </ul>
   </div>
@@ -286,10 +286,11 @@
     <p class="anim-up2" style="margin-bottom:1rem;font-size:1.1rem"><span style="text-decoration:line-through;color:var(--dim)">&#8377;399/month</span> &nbsp; <span class="gold" style="font-weight:700">&#8377;199 one time</span> &mdash; forever yours</p>
     <ul class="features gold-dots anim-up3">
       <li>Everything in Free, plus&hellip;</li>
+      <li><strong class="gold">Web Search &amp; Grounding</strong> &mdash; real-time answers with live sources (SerpAPI)</li>
       <li><strong class="gold">PDF generation</strong> &mdash; Markdown to polished PDF</li>
       <li><strong class="gold">Unlimited file generation</strong> &mdash; HTML, SVG, CSV, Python, JSON</li>
-      <li><strong class="gold">50 MB storage</strong> &mdash; 10x the free tier</li>
-      <li><strong class="gold">Image &amp; video generation</strong> &mdash; coming soon</li>
+      <li><strong class="gold">500 MB storage</strong> &mdash; 10x the free tier</li>
+      <li><strong class="gold">Voice &amp; image generation</strong> &mdash; STT, TTS, image API</li>
       <li>Pay once. Use forever. No subscription.</li>
     </ul>
   </div>
@@ -311,13 +312,30 @@
     <p class="anim-up4" style="margin-top:1rem;font-size:.95rem;color:var(--dim)">Pro users get unlimited generation &mdash; Free users get a generous daily quota.</p>
   </div>
 
-  <!-- ====== SLIDE 6 — API FIRST ====== -->
-  <div class="slide grad-tr" data-slide="5">
+  <!-- ====== SLIDE 6 — VOICE ====== -->
+  <div class="slide grad-center" data-slide="5">
+    <h2 class="anim-up">Voice — STT &amp; TTS <span class="gold" style="font-size:1.2rem">Pro</span></h2>
+    <p class="anim-up2" style="margin-bottom:1rem">Full voice pipeline: upload audio, get a transcript and AI reply. Or convert any text to speech.</p>
+    <ul class="features gold-dots anim-up3" style="max-width:520px">
+      <li><strong>Speech-to-Text</strong> &mdash; upload audio, get transcript + AI response in one call</li>
+      <li><strong>Text-to-Speech</strong> &mdash; pass text, receive audio back as base64</li>
+      <li><strong>Voice Prompt</strong> &mdash; speak your prompt, stream the reply</li>
+      <li>Supports MP3, WAV, OGG, FLAC, WebM, M4A</li>
+    </ul>
+    <div class="code-block anim-up4" style="margin-top:1rem"><span class="dim"># Voice prompt</span>
+<span class="kw">curl</span> -X POST /api/voice/prompt \
+  -H <span class="str">"X-User-Id: your-user-id"</span> \
+  -F <span class="str">"audio=@voice.mp3"</span> \
+  -F <span class="str">'{"stream":false}'</span></div>
+  </div>
+
+  <!-- ====== SLIDE 7 — API FIRST ====== -->
+  <div class="slide grad-tr" data-slide="6">
     <h2 class="anim-up">Built for Developers</h2>
     <div class="code-block anim-up2"><span class="dim"># Send a prompt</span>
 <span class="kw">curl</span> -X POST https://jaika.url/api/prompt \
   -H <span class="str">"Content-Type: application/json"</span> \
-  -H <span class="str">"X-User-Id: you@gmail.com"</span> \
+  -H <span class="str">"X-User-Id: your-user-id"</span> \
   -d <span class="str">'{"prompt": "Explain quantum computing"}'</span></div>
     <div class="code-block anim-up3" style="margin-top:.4rem"><span class="dim"># Python</span>
 <span class="kw">import</span> requests
@@ -334,8 +352,8 @@ r = requests.post(<span class="str">"https://jaika.url/api/prompt"</span>,
     </div>
   </div>
 
-  <!-- ====== SLIDE 7 — GETTING STARTED ====== -->
-  <div class="slide grad-center" data-slide="6">
+  <!-- ====== SLIDE 8 — GETTING STARTED ====== -->
+  <div class="slide grad-center" data-slide="7">
     <h2 class="anim-up">Get Started in 60 Seconds</h2>
     <div class="steps anim-up2">
       <div class="step">
@@ -361,8 +379,8 @@ r = requests.post(<span class="str">"https://jaika.url/api/prompt"</span>,
     </div>
   </div>
 
-  <!-- ====== SLIDE 8 — ARCHITECTURE ====== -->
-  <div class="slide grad-bl" data-slide="7">
+  <!-- ====== SLIDE 9 — ARCHITECTURE ====== -->
+  <div class="slide grad-bl" data-slide="8">
     <h2 class="anim-up">Architecture</h2>
     <div class="arch-flow anim-up2">
       <div class="arch-box"><strong>User</strong><br><span style="font-size:.8rem;color:var(--dim)">Browser / API</span></div>
@@ -375,35 +393,71 @@ r = requests.post(<span class="str">"https://jaika.url/api/prompt"</span>,
     </div>
     <ul class="features anim-up3" style="margin-top:1.2rem">
       <li>Self-hosted &mdash; your server, your data</li>
-      <li>Google OAuth &mdash; per-user quota &amp; isolation</li>
+      <li>OAuth &mdash; per-user isolation &amp; session management</li>
       <li>No API keys needed from users</li>
-      <li>Auto-updates daily via Git</li>
+      <li>Rate limiting, SSRF protection, output guardrails</li>
     </ul>
   </div>
 
-  <!-- ====== SLIDE 9 — UNDER THE HOOD ====== -->
-  <div class="slide grad-center" data-slide="8">
+  <!-- ====== SLIDE 10 — UNDER THE HOOD ====== -->
+  <div class="slide grad-center" data-slide="9">
     <h2 class="anim-up">Under the Hood</h2>
     <p class="anim-up2" style="margin-bottom:1rem">What makes Jaika different from a raw API wrapper</p>
     <div class="chip-grid anim-up3">
       <div class="chip" style="border-color:var(--accent)">Prompt Enhancer</div>
       <div class="chip" style="border-color:var(--green)">Skills System (.md)</div>
-      <div class="chip" style="border-color:var(--gold)">MCP Server Support</div>
+      <div class="chip" style="border-color:var(--gold)">Web Search Grounding</div>
       <div class="chip" style="border-color:var(--accent)">Input Guardrails</div>
       <div class="chip" style="border-color:var(--green)">Output Sanitization</div>
       <div class="chip" style="border-color:var(--gold)">Auto Token Refresh</div>
       <div class="chip" style="border-color:var(--accent)">Conversation Memory</div>
       <div class="chip" style="border-color:var(--green)">Per-user Isolation</div>
-      <div class="chip" style="border-color:var(--gold)">Concurrency Limiter</div>
+      <div class="chip" style="border-color:var(--gold)">Rate Limiting</div>
       <div class="chip" style="border-color:var(--accent)">File Auto-cleanup</div>
-      <div class="chip" style="border-color:var(--green)">Eval Framework</div>
-      <div class="chip" style="border-color:var(--gold)">CLI Auto-update</div>
+      <div class="chip" style="border-color:var(--green)">SSRF Protection</div>
+      <div class="chip" style="border-color:var(--gold)">gRPC Streaming</div>
     </div>
-    <p class="anim-up4" style="margin-top:1rem;font-size:.9rem;color:var(--dim)">Every prompt is refined, guarded, and optimized before it reaches Gemini.</p>
+    <p class="anim-up4" style="margin-top:1rem;font-size:.9rem;color:var(--dim)">Every prompt is refined, guarded, and optimized before it reaches the AI.</p>
   </div>
 
-  <!-- ====== SLIDE 10 — CONTACT ====== -->
-  <div class="slide grad-tr" data-slide="9">
+  <!-- ====== SLIDE 10 — SKILLS ====== -->
+  <div class="slide grad-bl" data-slide="9">
+    <h2 class="anim-up">Skills — Custom AI Behavior</h2>
+    <p class="anim-up2" style="margin-bottom:1rem">Upload <code>.md</code> files to give the AI domain knowledge, rules, or a full persona.</p>
+    <div class="chip-grid anim-up3">
+      <div class="chip" style="border-color:var(--accent)">Customer Support Bot</div>
+      <div class="chip" style="border-color:var(--green)">Code Review Assistant</div>
+      <div class="chip" style="border-color:var(--gold)">Legal Document Analyzer</div>
+      <div class="chip" style="border-color:var(--accent)">Sales Pitch Writer</div>
+      <div class="chip" style="border-color:var(--green)">Data Analyst</div>
+      <div class="chip" style="border-color:var(--gold)">Medical Summarizer</div>
+    </div>
+    <ul class="features anim-up4" style="margin-top:1.2rem;max-width:520px">
+      <li>Each user has their own skill set — fully isolated</li>
+      <li>Skills are appended to the system instruction on every prompt</li>
+      <li>Special skill <code>_persona</code> replaces the default AI behavior entirely</li>
+      <li>Manage via API or the chat UI &mdash; no restart needed</li>
+    </ul>
+  </div>
+
+  <!-- ====== SLIDE 11 — PERSONA ====== -->
+  <div class="slide grad-center" data-slide="10">
+    <h2 class="anim-up">_persona — White-label AI</h2>
+    <p class="anim-up2" style="margin-bottom:1rem">Create a skill named <code>_persona</code> to completely replace the default AI identity for that user.</p>
+    <div class="code-block anim-up3"><span class="dim"># _persona.md</span>
+You are <span class="acc">Aria</span>, a friendly customer support agent for Acme Corp.
+You only answer questions about Acme products.
+You always respond in a warm, professional tone.
+Never reveal technical details about the underlying system.</div>
+    <ul class="features anim-up4" style="margin-top:1.2rem;max-width:520px">
+      <li>Each user or tenant gets a completely different AI personality</li>
+      <li>Other skills <em>add</em> to the prompt — <code>_persona</code> <em>replaces</em> it</li>
+      <li>Deploy Jaika as a white-label product under your own brand</li>
+    </ul>
+  </div>
+
+  <!-- ====== SLIDE 12 — CONTACT ====== -->
+  <div class="slide grad-tr" data-slide="11">
     <h1 class="glow anim-up" style="font-size:clamp(2rem,5vw,3.5rem)">Start building today</h1>
     <p class="lead anim-up2" style="margin-top:.6rem">Free to start. Pro when you need more. Built by Jai Goyal.</p>
     <a class="gh-btn anim-up3" href="https://github.com/goyaljai/jaika" target="_blank" rel="noopener">
