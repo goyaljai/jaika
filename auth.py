@@ -576,25 +576,18 @@ def logout():
                 }, timeout=5)
             except Exception:
                 pass
-        # Admin logout: keep data, just revoke token
-        # Non-admin logout: delete everything
-        if not is_admin(user_id):
-            user_dir = os.path.join(_data_dir(), "users", user_id)
-            if os.path.exists(user_dir):
-                shutil.rmtree(user_dir)
-            cli_dir = os.path.join("/tmp", f"jaika-cli-{user_id}")
-            if os.path.exists(cli_dir):
-                shutil.rmtree(cli_dir)
+        # All users: keep data intact, just delete the token so they must re-login
+        # This allows email-based re-login from the docs portal
+        token_path = _token_path(user_id)
+        if os.path.exists(token_path):
+            os.remove(token_path)
     session.clear()
     return redirect("/")
 
 
 @auth_bp.route("/lookup")
 def lookup():
-    """Look up a user by email. Admin-only to prevent user enumeration."""
-    caller = _get_user_id()
-    if not caller or not is_admin(caller):
-        return jsonify({"error": "Admin access required"}), 403
+    """Look up a user by email for docs portal re-login. Public endpoint."""
     email = request.args.get("email", "").strip().lower()
     if not email:
         return jsonify({"found": False, "error": "Email required"}), 400

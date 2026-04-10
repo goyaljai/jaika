@@ -870,7 +870,11 @@ async function emailLookup() {
         document.getElementById('login-screen').style.display = 'none';
       }, 600);
     } else if (d.expired) {
-      status.innerHTML = '<span style="color:var(--yellow)">Account found but session expired. Run the terminal command below to re-login.</span>';
+      // Close modal, return to login screen — user re-runs the curl command
+      // Google OAuth preserves the same user_id (sub claim), so data is intact
+      document.getElementById('email-modal').style.display = 'none';
+      document.getElementById('login-status').innerHTML = '<span style="color:var(--yellow)">Account found! Re-run the command above to sign back in — your data is safe.</span>';
+      document.getElementById('login-status').className = 'login-status waiting';
     } else {
       status.innerHTML = '<span style="color:var(--text2)">No account found for this email. Sign in with the terminal command below to create one.</span>';
     }
@@ -1873,5 +1877,10 @@ function removeFile(i) { uploadedFiles.splice(i, 1); renderFilePreview(); }
 // ── Init ───────────────────────────────────────────────────
 initLogin();
 </script>
+<div style="position:fixed;bottom:12px;right:12px;z-index:999;opacity:0.85">
+  <a href="https://www.producthunt.com/products/jaika?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-jaika" target="_blank" rel="noopener noreferrer">
+    <img alt="Jaika on Product Hunt" width="200" height="43" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1120577&theme=dark&t=1775828251445">
+  </a>
+</div>
 </body>
 </html>
