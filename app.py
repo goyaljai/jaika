@@ -1386,6 +1386,82 @@ def admin_vitals():
     except Exception:
         vitals["uptime"] = "unknown"
 
+    # Load average
+    try:
+        with open("/proc/loadavg") as f:
+            parts = f.read().split()
+            vitals["load_avg"] = {
+                "1m": float(parts[0]),
+                "5m": float(parts[1]),
+                "15m": float(parts[2]),
+            }
+    except Exception:
+        vitals["load_avg"] = None
+
+    # Swap (extend memory vitals)
+    try:
+        if vitals.get("memory"):
+            mem_raw = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    p = line.split()
+                    if p[0] in ("SwapTotal:", "SwapFree:"):
+                        mem_raw[p[0].rstrip(":")] = int(p[1])
+            swap_total = mem_raw.get("SwapTotal", 0) // 1024
+            swap_free  = mem_raw.get("SwapFree", 0) // 1024
+            vitals["memory"]["swap_total_mb"] = swap_total
+            vitals["memory"]["swap_used_mb"]  = swap_total - swap_free
+    except Exception:
+        pass
+
+    # Gunicorn worker count — find master PID then count its children
+    try:
+        gunicorn_pids = []
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                with open(f"/proc/{pid}/comm") as f:
+                    if f.read().strip() == "gunicorn":
+                        gunicorn_pids.append(int(pid))
+            except OSError:
+                pass
+        # Master has the lowest PID; workers are its children
+        master_pid = min(gunicorn_pids) if gunicorn_pids else None
+        worker_count = len(gunicorn_pids) - 1 if gunicorn_pids else 0
+        vitals["workers"] = {"master_pid": master_pid, "count": worker_count}
+    except Exception:
+        vitals["workers"] = None
+
+    # Active sessions across all users
+    try:
+        sess_total = 0
+        user_dir = os.path.join(DATA_DIR, "users")
+        if os.path.exists(user_dir):
+            for uid in os.listdir(user_dir):
+                sd = os.path.join(user_dir, uid, "sessions")
+                if os.path.isdir(sd):
+                    sess_total += len([f for f in os.listdir(sd) if f.endswith(".json")])
+        vitals["total_sessions"] = sess_total
+    except Exception:
+        vitals["total_sessions"] = None
+
+    # Battery (Android devices expose this via sysfs)
+    try:
+        def _read_sys(path):
+            with open(path) as f:
+                return f.read().strip()
+        batt_base = "/sys/class/power_supply/battery"
+        vitals["battery"] = {
+            "percent":    int(_read_sys(f"{batt_base}/capacity")),
+            "status":     _read_sys(f"{batt_base}/status"),          # Charging / Full / Discharging
+            "temp_c":     round(int(_read_sys(f"{batt_base}/temp")) / 10, 1),
+            "voltage_mv": int(_read_sys(f"{batt_base}/voltage_now")) // 1000
+                          if os.path.exists(f"{batt_base}/voltage_now") else None,
+        }
+    except Exception:
+        vitals["battery"] = None
+
     from gemini import CLI_VERSION
     vitals["api_version"] = CLI_VERSION
 

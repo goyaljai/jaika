@@ -598,7 +598,7 @@ resp = client.chat.completions.create(
   <div class="hosting-guide-modal">
     <button class="close-guide" onclick="toggleHostingGuide()">&times;</button>
     <h2>Jaika v2 Hosting Guide</h2>
-    <p class="hg-subtitle">Deploy Jaika v2 on a fresh Ubuntu/Debian server. No Gemini CLI required — uses direct Google OAuth + cloudcode-pa API.</p>
+    <p class="hg-subtitle">Deploy Jaika v2 on a fresh Ubuntu/Debian server. Powered by Google's AI APIs with OAuth authentication.</p>
 
     <h3>1. Install system dependencies</h3>
     <pre>sudo apt update
@@ -641,16 +641,12 @@ JAIKA_PORT=5244
 SECRET_KEY=$SK
 EOF</pre>
 
-    <h3>5. Auth setup — Google OAuth credentials</h3>
-    <pre># You need a Google Cloud project with OAuth 2.0 credentials
-# (same ones used by Gemini CLI — find them in ~/.gemini/oauth_creds.json
-#  or create new ones in Google Cloud Console)
-#
-# Add to .env:
+    <h3>5. Auth setup — OAuth credentials</h3>
+    <pre># Add OAuth credentials to .env:
 echo "GOOGLE_CLIENT_ID=YOUR_CLIENT_ID" &gt;&gt; /opt/jaika-v2/.env
 echo "GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET" &gt;&gt; /opt/jaika-v2/.env
 
-# First user login: visit https://YOUR-DOMAIN/  and sign in with Google
+# First user login: visit https://YOUR-DOMAIN/ and sign in
 # The OAuth flow stores tokens per-user in data/users/&lt;user_id&gt;/token.json</pre>
 
     <h3>6. Set up Supervisor</h3>
@@ -1476,24 +1472,43 @@ async function loadVitals() {
     var disk = d.disk || {};
     var users = d.users || [];
 
+    var batt = d.battery || {};
+    var load = d.load_avg || {};
+    var wkrs = d.workers || {};
+    var battColor = batt.status === 'Charging' ? '#4ade80' : batt.status === 'Discharging' ? '#f87171' : 'var(--text)';
+    var battLabel = batt.status === 'Charging' ? '⚡ ' : batt.status === 'Discharging' ? '🔋 ' : '';
+    var loadColor = (load['1m'] || 0) > 8 ? '#f87171' : (load['1m'] || 0) > 4 ? '#fbbf24' : '#4ade80';
+
     var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
       '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
         '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Memory</div>' +
-        '<div style="font-size:20px;color:var(--text);font-weight:600">' + mem.percent + '%</div>' +
-        '<div style="font-size:12px">' + mem.used_mb + ' / ' + mem.total_mb + ' MB</div>' +
+        '<div style="font-size:20px;color:var(--text);font-weight:600">' + (mem.percent || '?') + '%</div>' +
+        '<div style="font-size:12px">' + (mem.used_mb || '?') + ' / ' + (mem.total_mb || '?') + ' MB</div>' +
       '</div>' +
       '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
         '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Disk</div>' +
-        '<div style="font-size:20px;color:var(--text);font-weight:600">' + disk.percent + '%</div>' +
-        '<div style="font-size:12px">' + disk.used_gb + ' / ' + disk.total_gb + ' GB</div>' +
+        '<div style="font-size:20px;color:var(--text);font-weight:600">' + (disk.percent || '?') + '%</div>' +
+        '<div style="font-size:12px">' + (disk.used_gb || '?') + ' / ' + (disk.total_gb || '?') + ' GB</div>' +
+      '</div>' +
+      '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Battery</div>' +
+        '<div style="font-size:20px;font-weight:600;color:' + battColor + '">' + battLabel + (batt.percent != null ? batt.percent + '%' : '?') + '</div>' +
+        '<div style="font-size:12px">' + (batt.status || '?') + (batt.temp_c != null ? ' · ' + batt.temp_c + '°C' : '') + '</div>' +
+      '</div>' +
+      '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Load Avg</div>' +
+        '<div style="font-size:20px;font-weight:600;color:' + loadColor + '">' + (load['1m'] != null ? load['1m'] : '?') + '</div>' +
+        '<div style="font-size:12px">5m: ' + (load['5m'] != null ? load['5m'] : '?') + ' · 15m: ' + (load['15m'] != null ? load['15m'] : '?') + '</div>' +
       '</div>' +
       '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
         '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Uptime</div>' +
         '<div style="font-size:20px;color:var(--text);font-weight:600">' + (d.uptime || '?') + '</div>' +
+        '<div style="font-size:12px">Workers: ' + (wkrs.count != null ? wkrs.count : '?') + ' · Sessions: ' + (d.total_sessions != null ? d.total_sessions : '?') + '</div>' +
       '</div>' +
       '<div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border)">' +
-        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Gemini CLI</div>' +
-        '<div style="font-size:20px;color:var(--text);font-weight:600">v' + (d.gemini_cli_version || '?') + '</div>' +
+        '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Swap</div>' +
+        '<div style="font-size:20px;color:var(--text);font-weight:600">' + (mem.swap_used_mb != null ? mem.swap_used_mb + ' MB' : '?') + '</div>' +
+        '<div style="font-size:12px">of ' + (mem.swap_total_mb != null ? mem.swap_total_mb + ' MB' : '?') + ' total</div>' +
       '</div>' +
     '</div>';
 
