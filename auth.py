@@ -1,5 +1,6 @@
 """Auth — local script loopback OAuth + token exchange endpoint."""
 
+import fcntl
 import json
 import os
 import time
@@ -8,6 +9,25 @@ import secrets
 
 import requests as http_requests
 from flask import Blueprint, request, session, jsonify, redirect  # session kept for clear()
+
+
+def _write_json_locked(path, data):
+    """Write JSON atomically with an exclusive cross-process lock (fcntl).
+
+    Uses a sibling .lock file so we never hold a lock on the data file itself,
+    and writes via a .tmp + os.replace so readers never see a partial file.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lock_path = path + ".lock"
+    with open(lock_path, "a") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, path)
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -39,8 +59,7 @@ def _token_path(user_id):
 
 def save_token(user_id, token_data):
     token_data["saved_at"] = time.time()
-    with open(_token_path(user_id), "w") as f:
-        json.dump(token_data, f)
+    _write_json_locked(_token_path(user_id), token_data)
 
 
 def load_token(user_id):
@@ -52,27 +71,61 @@ def load_token(user_id):
 
 
 def get_access_token(user_id):
-    """Return a valid access token, refreshing if expired."""
+    """Return a valid access token, refreshing if expired.
+
+    Resilience rules:
+    - If refresh succeeds: use the new token.
+    - If refresh fails due to a network/transient error: fall back to the
+      stale access_token (may still be accepted by Google for a short grace
+      period, and gemini.py will retry with a fresh token on 401).
+    - If refresh fails because the refresh_token is permanently revoked (400/401):
+      return None — caller must prompt re-login.
+    - If no token exists at all: return None.
+    """
     token = load_token(user_id)
     if token is None:
         return None
 
+    access_token = token.get("access_token")
+    if not access_token:
+        return None
+
     expires_at = token.get("saved_at", 0) + token.get("expires_in", 3600)
     if time.time() > expires_at - 300:
-        token = refresh_access_token(user_id, token)
-        if token is None:
+        refreshed, permanent_failure = refresh_access_token(user_id, token)
+        if refreshed is not None:
+            return refreshed.get("access_token")
+        if permanent_failure:
+            # Refresh token is permanently revoked — must re-login
             return None
+        # Transient failure (network error, Google 5xx) — return stale token.
+        # gemini.py handles 401 from the API by retrying with a fresh refresh.
+        import logging
+        logging.getLogger(__name__).warning(
+            "[AUTH] uid=%s refresh failed transiently, using stale token", user_id
+        )
+        return access_token
 
-    return token.get("access_token")
+    return access_token
 
 
 def refresh_access_token(user_id, token):
+    """Attempt to refresh the access token using the refresh_token.
+
+    Returns:
+        (new_token_dict, False)  — success
+        (None, True)             — permanent failure (400/401, refresh_token revoked)
+        (None, False)            — transient failure (network error, 5xx)
+    """
+    import logging as _log
+    log = _log.getLogger(__name__)
+
     refresh_token = token.get("refresh_token")
     if not refresh_token:
-        return None
+        return None, True  # no refresh_token = permanent failure
 
-    # Retry once on transient network errors
-    for attempt in range(2):
+    # Retry up to 3× with exponential backoff for transient errors
+    for attempt in range(3):
         try:
             resp = http_requests.post(GOOGLE_TOKEN_URL, data={
                 "client_id": CLI_CLIENT_ID,
@@ -80,32 +133,36 @@ def refresh_access_token(user_id, token):
                 "refresh_token": refresh_token,
                 "grant_type": "refresh_token",
             }, timeout=15)
-        except Exception:
-            if attempt == 0:
-                time.sleep(1)
+        except Exception as e:
+            delay = 2 ** attempt  # 1s, 2s, 4s
+            if attempt < 2:
+                log.warning("[AUTH] uid=%s refresh network error (attempt %d/3): %s — retrying in %ds",
+                            user_id, attempt + 1, e, delay)
+                time.sleep(delay)
                 continue
-            return None
+            log.warning("[AUTH] uid=%s refresh network error (attempt 3/3): %s — giving up", user_id, e)
+            return None, False  # transient — caller can use stale token
 
         if resp.status_code == 200:
             new_token = resp.json()
             new_token["refresh_token"] = refresh_token
             save_token(user_id, new_token)
-            return new_token
+            log.info("[AUTH] uid=%s token refreshed successfully", user_id)
+            return new_token, False
 
-        # Transient server error — retry once
-        if resp.status_code >= 500 and attempt == 0:
-            time.sleep(1)
+        if resp.status_code >= 500 and attempt < 2:
+            delay = 2 ** attempt
+            log.warning("[AUTH] uid=%s Google token endpoint %s (attempt %d/3) — retrying in %ds",
+                        user_id, resp.status_code, attempt + 1, delay)
+            time.sleep(delay)
             continue
 
-        # 400/401 = refresh token is permanently invalid
-        import logging
-        logging.getLogger(__name__).warning(
-            "Refresh token invalid for user %s: %s %s",
-            user_id, resp.status_code, resp.text[:200],
-        )
-        break
+        # 400/401 = refresh_token permanently invalid (revoked, account closed, etc.)
+        log.warning("[AUTH] uid=%s refresh token permanently invalid: %s %s",
+                    user_id, resp.status_code, resp.text[:200])
+        return None, True  # permanent
 
-    return None
+    return None, False  # exhausted retries — transient
 
 
 def _admins_path():
@@ -138,8 +195,7 @@ def get_admin_emails():
 
 
 def save_admin_emails(emails):
-    with open(_admins_path(), "w") as f:
-        json.dump(emails, f)
+    _write_json_locked(_admins_path(), emails)
     _cache["admins"] = emails
     _cache["admins_ts"] = time.time()
 
@@ -161,8 +217,7 @@ def get_pro_emails():
 
 
 def save_pro_emails(emails):
-    with open(_pro_users_path(), "w") as f:
-        json.dump(emails, f)
+    _write_json_locked(_pro_users_path(), emails)
     _cache["pro"] = emails
     _cache["pro_ts"] = time.time()
 
@@ -224,8 +279,7 @@ def _save_to_contacts(user_id, user_info, token_data):
         "last_login": time.time(),
     }
 
-    with open(path, "w") as f:
-        json.dump(contacts, f, indent=2)
+    _write_json_locked(path, contacts)
 
 
 def get_contacts():
@@ -291,6 +345,8 @@ def exchange():
 
     if not code or not redirect_uri:
         return jsonify({"error": "code and redirect_uri required"}), 400
+    if not login_token or login_token not in _pending_logins:
+        return jsonify({"error": "Invalid or expired login token"}), 400
 
     # Exchange code for tokens using CLI credentials
     resp = http_requests.post(GOOGLE_TOKEN_URL, data={
@@ -487,11 +543,15 @@ fi
 @auth_bp.route("/logout")
 def logout():
     import shutil
-    user_id = request.args.get("uid") or _get_user_id()
+    caller_id = _get_user_id()
+    user_id = request.args.get("uid") or caller_id
     if not user_id:
         session.clear()
         return redirect("/")
-    # Verify the caller owns this account — must have a valid token on disk
+    # Verify caller owns this account (or is an admin logging someone else out)
+    if caller_id and user_id != caller_id and not is_admin(caller_id):
+        session.clear()
+        return redirect("/")
     if load_token(user_id) is None:
         session.clear()
         return redirect("/")

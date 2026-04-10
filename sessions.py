@@ -1,9 +1,32 @@
 """Session CRUD — JSON file storage, scoped per user."""
 
+import fcntl
 import json
 import os
 import time
 import uuid
+
+
+def _locked_update(path, updater_fn):
+    """Exclusive read-modify-write on a JSON file, safe across threads and gunicorn workers.
+
+    Uses a sibling .lock file so the lock is held for the entire read-modify-write cycle.
+    Writes atomically via a .tmp file + os.replace so readers never see a partial write.
+    """
+    lock_path = path + ".lock"
+    with open(lock_path, "a") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            data = updater_fn(data)
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, path)
+            return data
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
 
 def _data_dir():
@@ -104,22 +127,30 @@ def create_session(user_id, title=None):
         "updated": now,
         "messages": [],
     }
-    with open(_session_path(user_id, session_id), "w") as f:
+    path = _session_path(user_id, session_id)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
+    os.replace(tmp, path)
     return data
 
 
 def update_session(user_id, session_id, title=None):
     """Rename a session."""
-    data = get_session(user_id, session_id)
-    if data is None:
+    path = _session_path(user_id, session_id)
+    if not os.path.exists(path):
         return None
-    if title is not None:
-        data["title"] = title
-    data["updated"] = time.time()
-    with open(_session_path(user_id, session_id), "w") as f:
-        json.dump(data, f, indent=2)
-    return data
+
+    def _update(data):
+        if title is not None:
+            data["title"] = title
+        data["updated"] = time.time()
+        return data
+
+    try:
+        return _locked_update(path, _update)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
 
 
 def delete_session(user_id, session_id):
@@ -132,40 +163,49 @@ def delete_session(user_id, session_id):
 
 
 def add_message(user_id, session_id, role, text, files=None):
-    """Append a message to a session."""
-    data = get_session(user_id, session_id)
-    if data is None:
+    """Append a message to a session (locked read-modify-write)."""
+    path = _session_path(user_id, session_id)
+    if not os.path.exists(path):
         return None
+
     msg = {
         "role": role,
         "text": text,
         "timestamp": time.time(),
     }
     if files:
-        # Store file metadata (not full base64) for history display
         msg["files"] = [{"name": f.get("name", "file"), "mime_type": f.get("mime_type", "")} for f in files]
-    data["messages"].append(msg)
-    data["updated"] = time.time()
 
-    # Auto-title from first user message
-    if data["title"] == "New Chat" and role == "user" and text:
-        data["title"] = text[:60].strip()
+    def _update(data):
+        data["messages"].append(msg)
+        data["updated"] = time.time()
+        if data["title"] == "New Chat" and role == "user" and text:
+            data["title"] = text[:60].strip()
+        return data
 
-    with open(_session_path(user_id, session_id), "w") as f:
-        json.dump(data, f, indent=2)
+    try:
+        _locked_update(path, _update)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
     return msg
 
 
 def clear_messages(user_id, session_id):
-    """Clear all messages from a session."""
-    data = get_session(user_id, session_id)
-    if data is None:
+    """Clear all messages from a session (locked)."""
+    path = _session_path(user_id, session_id)
+    if not os.path.exists(path):
         return False
-    data["messages"] = []
-    data["updated"] = time.time()
-    with open(_session_path(user_id, session_id), "w") as f:
-        json.dump(data, f, indent=2)
-    return True
+
+    def _update(data):
+        data["messages"] = []
+        data["updated"] = time.time()
+        return data
+
+    try:
+        _locked_update(path, _update)
+        return True
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
 
 
 def get_conversation_history(user_id, session_id):

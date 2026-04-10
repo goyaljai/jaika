@@ -159,6 +159,123 @@ _INTENT_PATTERNS = [
 ]
 
 
+
+# ── Search intent detection ──────────────────────────────────────────────────
+# Prompts that involve real-time, current, or factual world-state knowledge
+# benefit from Google Search grounding. We detect these via keyword patterns.
+
+_SEARCH_KEYWORDS = frozenset([
+    # Temporal signals — strong indicator something time-sensitive is being asked
+    "today", "yesterday", "right now", "currently", "at the moment",
+    "this week", "this month", "this year", "last week", "last month", "last year",
+    "latest", "recent", "recently", "current", "currently", "now", "live",
+    "real-time", "realtime", "up to date", "up-to-date", "as of", "in 2024",
+    "in 2025", "in 2026", "breaking", "just announced", "just released",
+    "right now", "at present", "presently", "ongoing", "active",
+    # News & events
+    "news", "headline", "headlines", "breaking news", "top stories",
+    "what happened", "what's happening", "what is happening",
+    "announcement", "announced", "announced today",
+    "update", "updates", "updated", "new update",
+    "report", "reports", "reported", "reporting",
+    "event", "events", "incident", "incidents", "crisis", "situation",
+    "conflict", "war", "attack", "protest", "riots", "strike",
+    "summit", "conference", "meeting", "treaty", "agreement",
+    "disaster", "earthquake", "flood", "wildfire", "hurricane", "tornado", "typhoon",
+    # Finance & markets
+    "stock", "stocks", "market", "markets", "share price", "share prices",
+    "crypto", "bitcoin", "btc", "ethereum", "eth", "nft", "defi",
+    "price", "prices", "cost", "value", "worth", "valuation",
+    "nasdaq", "dow jones", "s&p", "s&p 500", "ftse", "nifty", "sensex",
+    "interest rate", "inflation", "recession", "gdp", "economy",
+    "ipo", "earnings", "revenue", "profit", "loss", "quarter",
+    "dollar", "euro", "pound", "yen", "currency", "exchange rate",
+    "gold", "oil", "commodity", "commodities",
+    # Sports & competitions
+    "score", "scores", "result", "results", "standings", "ranking", "rankings",
+    "winner", "won", "lost", "defeated", "champion", "championship",
+    "world cup", "super bowl", "olympics", "grand slam", "playoffs",
+    "tournament", "league", "match", "game", "series",
+    "nfl", "nba", "nhl", "mlb", "fifa", "ipl", "premier league",
+    "who won", "who lost", "who scored", "final score",
+    # Politics & government
+    "election", "elections", "vote", "voted", "voting", "ballot",
+    "president", "prime minister", "chancellor", "senator", "congressman",
+    "government", "policy", "bill", "law", "legislation", "regulation",
+    "congress", "senate", "parliament", "cabinet", "supreme court",
+    "approved", "passed", "signed", "vetoed", "enacted",
+    "tariff", "sanction", "sanctions", "ban", "banned",
+    # People & public figures
+    "who is", "who are", "who was", "ceo", "founder", "director",
+    "celebrity", "famous", "star", "actor", "actress", "singer", "athlete",
+    "died", "death", "passed away", "arrested", "convicted", "sentenced",
+    "married", "divorced", "pregnant", "born", "birthday",
+    # Products & technology launches
+    "release", "released", "launch", "launched", "announced",
+    "new version", "update", "upgrade", "available", "out now",
+    "iphone", "android", "samsung", "apple", "google", "microsoft",
+    "openai", "gpt", "chatgpt", "gemini", "claude",
+    "specs", "specification", "review", "hands-on",
+    # Science & research
+    "study", "research", "discovered", "found", "scientists",
+    "published", "journal", "paper", "breakthrough", "treatment",
+    "vaccine", "drug", "trial", "covid", "pandemic", "virus",
+    "nasa", "space", "launch", "mission", "planet", "asteroid",
+    # Weather & environment
+    "weather", "forecast", "temperature", "rain", "snow", "storm",
+    "climate", "warming", "emission", "emissions",
+    "hurricane", "flood", "drought", "fire", "wildfire",
+    # Culture & entertainment
+    "box office", "oscar", "emmy", "grammy", "billboard",
+    "chart", "charts", "trending", "viral", "meme",
+    "premiere", "release date", "trailer", "streaming",
+    # Travel & logistics
+    "flight", "flights", "delay", "cancelled", "airport",
+    "traffic", "road", "route", "open", "closed",
+    # Health
+    "symptoms", "outbreak", "spread", "infected", "cases",
+    # General world knowledge
+    "population", "how many people", "capital of", "current president",
+    "who leads", "what country", "what country is",
+])
+
+# Quick-hit patterns: regex for things hard to catch with word matching
+_SEARCH_PATTERNS = [
+    re.compile(r'\b(what|who|where|when|how)\s+(is|are|was|were)\s+(?:the\s+)?(?:current|latest|recent|new|today)', re.I),
+    re.compile(r'\b(is\s+.+?\s+(?:still|open|available|alive|free|live))\b', re.I),
+    re.compile(r'\b\d{4}\s+(news|election|season|version|update|release)\b', re.I),
+    re.compile(r'\b(latest|newest|most recent)\s+\w+', re.I),
+    re.compile(r'\b(as of|since)\s+(today|yesterday|this\s+\w+|january|february|march|april|may|june|july|august|september|october|november|december)', re.I),
+    re.compile(r'\b(current|live)\s+(price|rate|score|status|situation)\b', re.I),
+    re.compile(r'\bwhat.?s\s+(happening|going on|the\s+(?:news|latest|status))\b', re.I),
+]
+
+
+def detect_search_intent(prompt: str) -> bool:
+    """Return True if the prompt likely needs real-time web data to answer well.
+
+    Uses keyword matching against a ~500-word list covering: current events,
+    prices, sports scores, politics, product launches, weather, and more.
+    Fast O(n) scan — no ML, no external calls.
+    """
+    lower = prompt.lower()
+    # Word-boundary keyword scan
+    words = re.split(r'\W+', lower)
+    word_set = set(words)
+    # Single-word hits
+    if word_set & _SEARCH_KEYWORDS:
+        return True
+    # Multi-word phrase hits
+    for kw in _SEARCH_KEYWORDS:
+        if ' ' in kw and kw in lower:
+            return True
+    # Regex pattern hits
+    for pat in _SEARCH_PATTERNS:
+        if pat.search(prompt):
+            return True
+    return False
+
+
 def detect_intent_hints(prompt):
     """Detect user intent and return system-level hints. Does NOT modify the user's prompt."""
     hints = []

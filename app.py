@@ -99,6 +99,57 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(compat_bp)
 
 
+# ── Background token refresh ──────────────────────────────────────────────────
+# Proactively refresh OAuth tokens for all known users every 30 minutes.
+# Prevents stale tokens from causing auth failures on the first request after
+# a long idle period (access tokens expire after ~1hr; we refresh at 54min).
+
+def _token_refresh_worker():
+    """Background thread: proactively refresh OAuth tokens before they expire.
+
+    Checks every 5 minutes. For each user, get_access_token() decides whether
+    a refresh is actually needed (it refreshes when within 5 minutes of expiry —
+    i.e. at ~55 minutes after the token was issued for a 3600s token).
+
+    Timeline example for a user who logged in at T=0 (token expires_in=3600):
+      T+0   login: access_token saved, expires at T+3600
+      T+55m worker calls get_access_token → T+3300 < T+3600-300 → no refresh
+      T+55m (next check after 5min): T+3600 > T+3600-300 → REFRESH triggered
+      T+55m: new access_token obtained, saved_at reset to now, cycle repeats
+    """
+    import time as _time
+    from auth import get_access_token
+    _CHECK_INTERVAL = 5 * 60  # check every 5 minutes
+    _time.sleep(30)  # brief startup delay
+    while True:
+        try:
+            users_dir = os.path.join(DATA_DIR, "users")
+            if os.path.isdir(users_dir):
+                for uid in os.listdir(users_dir):
+                    try:
+                        tok = get_access_token(uid)  # refreshes internally if needed
+                        if tok:
+                            log.debug("[TOKEN-REFRESH] uid=%s OK", uid)
+                        else:
+                            log.warning("[TOKEN-REFRESH] uid=%s refresh failed (re-login required)", uid)
+                    except Exception as e:
+                        log.warning("[TOKEN-REFRESH] uid=%s error: %s", uid, e)
+        except Exception as e:
+            log.error("[TOKEN-REFRESH] worker error: %s", e)
+        _time.sleep(_CHECK_INTERVAL)
+
+
+_refresh_thread = threading.Thread(target=_token_refresh_worker, daemon=True, name="token-refresh")
+_refresh_thread.start()
+
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    uid = _get_user_id() or "anon"
+    log.warning("[RATELIMIT] uid=%s path=%s limit=%s", uid, request.path, getattr(e, "description", ""))
+    return jsonify({"error": "Rate limit exceeded. Please slow down."}), 429
+
+
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 def _user_id():
@@ -117,6 +168,7 @@ def admin_required(f):
     def wrapper(*args, **kwargs):
         uid = _user_id()
         if not uid or not is_admin(uid):
+            log.warning("[AUTH] uid=%s route=%s admin_required denied", uid, request.path)
             return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
     return wrapper
@@ -231,8 +283,10 @@ def prompt():
 
     # Pro-only features
     if thinking and not is_admin(uid) and not is_pro(uid):
+        log.warning("[TIER] uid=%s feature=thinking blocked", uid)
         return jsonify({"error": "Thinking mode is a Pro feature. Upgrade at /pro"}), 403
     if grounding and not is_admin(uid) and not is_pro(uid):
+        log.warning("[TIER] uid=%s feature=grounding blocked", uid)
         return jsonify({"error": "Web grounding is a Pro feature. Upgrade at /pro"}), 403
 
     # Get or create session
@@ -256,10 +310,7 @@ def prompt():
         else:
             log.warning("File %s not found for user %s", fid, uid)
 
-    # Store user message (file metadata only, not binary)
-    add_message(uid, session_id, "user", prompt_text, files=file_metas if file_metas else None)
-
-    # Build conversation history (text-only for previous turns; files only for current)
+    # Build conversation history from past messages (before persisting the current user message)
     history = get_conversation_history(uid, session_id)
     system_instruction = build_system_instruction()
 
@@ -269,10 +320,14 @@ def prompt():
 
     # Inject intent-based hints (code, math, creative writing, etc.)
     if prompt_text:
-        from prompt_engine import detect_intent_hints
+        from prompt_engine import detect_intent_hints, detect_search_intent
         hints = detect_intent_hints(prompt_text)
         if hints:
             system_instruction = (system_instruction + "\n\n" + hints).strip() if system_instruction else hints
+        # Detect whether this prompt would benefit from web search grounding
+        suggest_grounding = not grounding and detect_search_intent(prompt_text)
+    else:
+        suggest_grounding = False
 
     # Inject per-user memory as a pinned first exchange (not in system instruction)
     facts = _load_memory(uid)
@@ -283,6 +338,8 @@ def prompt():
         ]
         history = mem_msg + history
 
+    # Append current user message in-memory for the API call (not persisted yet)
+    api_messages = history + [{"role": "user", "text": prompt_text, "files": file_metas or []}]
     resp_mime = "application/json" if response_format == "json" else None
 
     if stream:
@@ -290,7 +347,7 @@ def prompt():
             # First event: session_id so client can continue the conversation
             yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
             full_text = []
-            for chunk in stream_generate(uid, history, files=file_data,
+            for chunk in stream_generate(uid, api_messages, files=file_data,
                                          system_instruction=system_instruction,
                                          thinking=thinking, thinking_budget=thinking_budget,
                                          grounding=grounding):
@@ -302,18 +359,25 @@ def prompt():
                             full_text.append(d["text"])
                     except (json.JSONDecodeError, KeyError):
                         pass
+            # Persist only if we got a response (no orphaned user messages on failure)
             if full_text:
+                add_message(uid, session_id, "user", prompt_text, files=file_metas if file_metas else None)
                 add_message(uid, session_id, "model", "".join(full_text))
+            # Signal whether web search grounding would improve this response
+            if suggest_grounding:
+                yield f"data: {json.dumps({'type': 'suggest_grounding', 'prompt': prompt_text, 'session_id': session_id})}\n\n"
 
         return Response(event_stream(), mimetype="text/event-stream",
                         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    result = generate(uid, history, files=file_data, system_instruction=system_instruction,
+    result = generate(uid, api_messages, files=file_data, system_instruction=system_instruction,
                       thinking=thinking, thinking_budget=thinking_budget,
                       grounding=grounding, response_mime_type=resp_mime)
     if "error" in result:
         return jsonify({"error": result["error"], "session_id": session_id}), 502
 
+    # Persist user + model messages only after a successful API response
+    add_message(uid, session_id, "user", prompt_text, files=file_metas if file_metas else None)
     add_message(uid, session_id, "model", result["text"])
 
     resp = {
@@ -323,6 +387,8 @@ def prompt():
     }
     if result.get("grounding"):
         resp["grounding"] = result["grounding"]
+    if suggest_grounding:
+        resp["suggest_grounding"] = True
     return jsonify(resp)
 
 
@@ -535,7 +601,6 @@ def voice_prompt():
         sess = create_session(uid)
         session_id = sess["id"]
 
-    add_message(uid, session_id, "user", transcript)
     history = get_conversation_history(uid, session_id)
     system_instruction = build_system_instruction()
 
@@ -552,12 +617,15 @@ def voice_prompt():
         ]
         history = mem_msg + history
 
+    # Append transcript as the current user message in-memory (not persisted yet)
+    api_messages = history + [{"role": "user", "text": transcript, "files": []}]
+
     if do_stream:
         def event_stream():
             # First event: the transcript
             yield f"data: {json.dumps({'type': 'transcript', 'text': transcript})}\n\n"
             full_text = []
-            for chunk in stream_generate(uid, history, system_instruction=system_instruction):
+            for chunk in stream_generate(uid, api_messages, system_instruction=system_instruction):
                 yield chunk
                 if chunk.startswith("data: "):
                     try:
@@ -567,15 +635,17 @@ def voice_prompt():
                     except (json.JSONDecodeError, KeyError):
                         pass
             if full_text:
+                add_message(uid, session_id, "user", transcript)
                 add_message(uid, session_id, "model", "".join(full_text))
 
         return Response(event_stream(), mimetype="text/event-stream",
                         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    result = generate(uid, history, system_instruction=system_instruction)
+    result = generate(uid, api_messages, system_instruction=system_instruction)
     if "error" in result:
         return jsonify({"error": result["error"], "transcript": transcript, "session_id": session_id}), 502
 
+    add_message(uid, session_id, "user", transcript)
     add_message(uid, session_id, "model", result["text"])
 
     return jsonify({
@@ -828,7 +898,7 @@ def generate_file():
             pass
     threading.Timer(1800, _cleanup).start()
 
-    remaining = "unlimited" if is_admin(uid) else str(5 - _get_file_gen_count(uid))
+    remaining = "unlimited" if (is_admin(uid) or is_pro(uid)) else str(5 - _get_file_gen_count(uid))
     return jsonify({
         "file_url": f"/api/download/{uid}/{fname}",
         "filename": fname,
@@ -855,10 +925,10 @@ def generate_image():
     if not prompt_text:
         return jsonify({"error": "Prompt required"}), 400
 
-    # Rate limit
-    if not is_admin(uid):
+    # Rate limit (free users only)
+    if not is_admin(uid) and not is_pro(uid):
         count = _get_file_gen_count(uid)
-        if not is_pro(uid) and count >= 5:
+        if count >= 5:
             return jsonify({"error": "Generation limit reached (5/day). Upgrade to Pro."}), 429
         _inc_file_gen_count(uid)
 
@@ -897,12 +967,14 @@ def generate_image():
             pass
     threading.Timer(1800, _cleanup).start()
 
+    remaining = "unlimited" if (is_admin(uid) or is_pro(uid)) else str(5 - _get_file_gen_count(uid))
     return jsonify({
         "file_url": f"/api/download/{uid}/{fname}",
         "filename": fname,
         "mime_type": img_mime,
         "caption": caption,
         "size": os.path.getsize(out_path),
+        "remaining": remaining,
     })
 
 
@@ -917,9 +989,9 @@ def generate_video():
     if not prompt_text:
         return jsonify({"error": "Prompt required"}), 400
 
-    if not is_admin(uid):
+    if not is_admin(uid) and not is_pro(uid):
         count = _get_file_gen_count(uid)
-        if not is_pro(uid) and count >= 5:
+        if count >= 5:
             return jsonify({"error": "Generation limit reached (5/day). Upgrade to Pro."}), 429
         _inc_file_gen_count(uid)
 
@@ -942,11 +1014,13 @@ def generate_video():
             pass
     threading.Timer(1800, _cleanup).start()
 
+    remaining = "unlimited" if (is_admin(uid) or is_pro(uid)) else str(5 - _get_file_gen_count(uid))
     return jsonify({
         "file_url": f"/api/download/{uid}/{fname}",
         "filename": fname,
         "mime_type": "text/html",
         "size": len(content),
+        "remaining": remaining,
     })
 
 
@@ -1007,7 +1081,6 @@ def web_fetch():
         session_id = sess["id"]
 
     user_msg = f"URL: {url}\n\nContent:\n{raw[:8000]}\n\n{prompt_text}"
-    add_message(uid, session_id, "user", user_msg)
     history = get_conversation_history(uid, session_id)
     system_instruction = build_system_instruction()
 
@@ -1024,10 +1097,12 @@ def web_fetch():
         ]
         history = mem_msg + history
 
-    result = generate(uid, history, system_instruction=system_instruction)
+    api_messages = history + [{"role": "user", "text": user_msg, "files": []}]
+    result = generate(uid, api_messages, system_instruction=system_instruction)
     if "error" in result:
         return jsonify({"error": result["error"], "session_id": session_id}), 502
 
+    add_message(uid, session_id, "user", user_msg)
     add_message(uid, session_id, "model", result["text"])
     return jsonify({"text": result["text"], "url": url, "session_id": session_id})
 
@@ -1126,7 +1201,7 @@ def tts():
     if not text:
         return jsonify({"error": "text required"}), 400
 
-    from gemini import _headers as gem_headers, _get_project_id, ENDPOINT, MODEL_TTS
+    from gemini import _headers as gem_headers, _get_project_id, ENDPOINT, get_model_config
     import requests as http_requests
 
     headers = gem_headers(uid)
@@ -1139,29 +1214,45 @@ def tts():
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
         },
     }
-    body = {"model": MODEL_TTS, "project": project_id, "request": request_body}
 
-    try:
-        resp = http_requests.post(
-            f"{ENDPOINT}/v1internal:generateContent",
-            headers=headers, json=body, timeout=60,
-        )
-    except Exception as e:
-        return jsonify({"error": f"Request failed: {e}"}), 502
+    # Try TTS-capable models; not all models support AUDIO responseModalities
+    cfg = get_model_config()
+    tts_models = [cfg.get("tts", "gemini-2.5-flash")] + [m for m in cfg.get("fallback", []) if m != cfg.get("tts")]
 
-    if resp.status_code != 200:
-        return jsonify({"error": f"TTS not available ({resp.status_code}). Backend may not support audio output."}), 502
+    last_status = None
+    last_body = ""
+    for tts_model in tts_models:
+        body = {"model": tts_model, "project": project_id, "request": request_body}
+        try:
+            resp = http_requests.post(
+                f"{ENDPOINT}/v1internal:generateContent",
+                headers=headers, json=body, timeout=60,
+            )
+        except Exception as e:
+            return jsonify({"error": f"Request failed: {e}"}), 502
 
-    try:
-        data_resp = resp.json()
-        parts = data_resp["response"]["candidates"][0]["content"]["parts"]
-        audio_b64 = next(p["inline_data"]["data"] for p in parts if "inline_data" in p)
-        audio_bytes = base64.b64decode(audio_b64)
-        audio_mime = parts[0].get("inline_data", {}).get("mimeType", "audio/wav")
-        return Response(audio_bytes, mimetype=audio_mime,
-                        headers={"Content-Disposition": "inline; filename=speech.wav"})
-    except (KeyError, IndexError, StopIteration):
-        return jsonify({"error": "No audio in response — TTS may not be supported on this backend"}), 502
+        log.info("[TTS] uid=%s model=%s status=%s", uid, tts_model, resp.status_code)
+
+        if resp.status_code == 200:
+            try:
+                data_resp = resp.json()
+                parts = data_resp["response"]["candidates"][0]["content"]["parts"]
+                audio_b64 = next(p["inline_data"]["data"] for p in parts if "inline_data" in p)
+                audio_bytes = base64.b64decode(audio_b64)
+                audio_mime = parts[0].get("inline_data", {}).get("mimeType", "audio/wav")
+                return Response(audio_bytes, mimetype=audio_mime,
+                                headers={"Content-Disposition": "inline; filename=speech.wav"})
+            except (KeyError, IndexError, StopIteration):
+                log.warning("[TTS] uid=%s model=%s no audio in response", uid, tts_model)
+                continue
+
+        last_status = resp.status_code
+        last_body = resp.text[:300]
+        log.warning("[TTS] uid=%s model=%s status=%s body=%s", uid, tts_model, resp.status_code, last_body)
+        if resp.status_code in (400, 429, 503):
+            continue  # model doesn't support audio or rate limited, try next
+
+    return jsonify({"error": "TTS not available. Audio output is not allowlisted on this backend."}), 502
 
 
 # ── Eval ────────────────────────────────────────────────────────────────────
@@ -1492,6 +1583,63 @@ def admin_delete_user(target_uid):
     return jsonify({"ok": True, "deleted": target_uid})
 
 
+# ── Admin: Model Config ──────────────────────────────────────────────────────
+
+@app.route("/api/admin/models", methods=["GET"])
+@login_required
+@admin_required
+def admin_get_models():
+    """Return current model config (fallback list, thinking model, tts model)."""
+    from gemini import get_model_config
+    return jsonify(get_model_config())
+
+
+@app.route("/api/admin/models", methods=["POST"])
+@login_required
+@admin_required
+def admin_save_models():
+    """Update model config. Body: {fallback: [...], thinking: "...", tts: "..."}
+    Only provided fields are updated; omitted fields keep their current values.
+    """
+    from gemini import get_model_config, save_model_config
+    data = request.get_json(force=True)
+    cfg = get_model_config()
+
+    if "fallback" in data:
+        models = [m.strip() for m in data["fallback"] if isinstance(m, str) and m.strip()]
+        if not models:
+            return jsonify({"error": "fallback list cannot be empty"}), 400
+        cfg["fallback"] = models
+    if "thinking" in data:
+        m = (data["thinking"] or "").strip()
+        if not m:
+            return jsonify({"error": "thinking model cannot be empty"}), 400
+        cfg["thinking"] = m
+    if "tts" in data:
+        m = (data["tts"] or "").strip()
+        if not m:
+            return jsonify({"error": "tts model cannot be empty"}), 400
+        cfg["tts"] = m
+
+    save_model_config(cfg)
+    return jsonify(cfg)
+
+
+@app.route("/api/admin/models/fallback/<path:model_name>", methods=["DELETE"])
+@login_required
+@admin_required
+def admin_remove_fallback_model(model_name):
+    """Remove a model from the fallback list."""
+    from gemini import get_model_config, save_model_config
+    cfg = get_model_config()
+    updated = [m for m in cfg["fallback"] if m != model_name]
+    if not updated:
+        return jsonify({"error": "Cannot remove the last fallback model"}), 400
+    cfg["fallback"] = updated
+    save_model_config(cfg)
+    return jsonify(cfg)
+
+
 # ── API Docs ─────────────────────────────────────────────────────────────────
 
 @app.route("/api/docs", methods=["GET"])
@@ -1681,7 +1829,7 @@ def api_docs():
                     {"method": "GET", "path": "/v1/models",
                      "description": "List available models."},
                     {"method": "POST", "path": "/v1/chat/completions",
-                     "description": "Chat completions. Supports stream:true. model is mapped: gpt-4o→gemini-2.5-pro, gpt-4o-mini→gemini-2.5-flash, gpt-3.5-turbo→gemini-2.5-flash.",
+                     "description": "Chat completions. Supports stream:true. model is mapped: gpt-4o→gemini-3-flash-preview, gpt-4o-mini→gemini-3.1-flash-lite-preview, gpt-3.5-turbo→gemini-3.1-flash-lite-preview.",
                      "body": {"model": "string", "messages": "array", "stream": "bool"}},
                 ],
             },
@@ -1689,7 +1837,7 @@ def api_docs():
                 "description": "Anthropic-compatible API. Use your user_id as the API key (x-api-key: <user_id>).",
                 "endpoints": [
                     {"method": "POST", "path": "/v1/messages",
-                     "description": "Messages API. Supports stream:true. model mapped: claude-3-5-sonnet/claude-opus-4→gemini-2.5-pro, claude-sonnet-4→gemini-2.5-flash.",
+                     "description": "Messages API. Supports stream:true. model mapped: claude-opus-4/claude-3-5-sonnet→gemini-3-flash-preview, claude-sonnet-4/claude-3-haiku→gemini-3.1-flash-lite-preview.",
                      "body": {"model": "string", "messages": "array", "system": "string", "stream": "bool"}},
                 ],
             },
@@ -1754,6 +1902,21 @@ def api_docs():
                 {"method": "GET", "path": "/api/eval/guardrails",
                  "auth": "admin",
                  "description": "Run prompt guardrail eval suite (no API calls)."},
+                {"method": "GET", "path": "/api/admin/models",
+                 "auth": "admin",
+                 "description": "Get model config: fallback chain, thinking model, TTS model.",
+                 "response": {"fallback": "array of model IDs (ordered, tried left to right)",
+                              "thinking": "model ID used for thinking/extended-reasoning requests",
+                              "tts": "model ID used for text-to-speech"}},
+                {"method": "POST", "path": "/api/admin/models",
+                 "auth": "admin",
+                 "body": {"fallback": "array (optional) — replace entire fallback chain",
+                          "thinking": "string (optional) — set thinking model",
+                          "tts": "string (optional) — set TTS model"},
+                 "description": "Partial-update model config. Only provided fields are changed. Changes take effect within 60s (cache TTL). Persisted to data/models.json."},
+                {"method": "DELETE", "path": "/api/admin/models/fallback/<model>",
+                 "auth": "admin",
+                 "description": "Remove a single model from the fallback chain. No-op if model not present."},
             ],
         },
         "supported_file_types": {
@@ -1770,16 +1933,27 @@ def api_docs():
             "pro": {"sessions": 25, "storage_mb": 500, "file_gen_per_day": "unlimited", "upload_ttl": "1 hour"},
             "admin": {"sessions": "unlimited", "storage_mb": "unlimited", "file_gen_per_day": "unlimited", "upload_ttl": "1 hour"},
         },
-        "models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+        "models": [
+            "gemini-3-flash-preview",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+        ],
         "model_routing": {
-            "fallback_order": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+            "note": "Fallback chain and thinking/TTS models are admin-configurable via GET/POST /api/admin/models. Defaults shown below.",
+            "fallback_order": [
+                "gemini-3-flash-preview",
+                "gemini-3.1-flash-lite-preview",
+                "gemini-2.5-flash",
+                "gemini-2.5-flash-lite",
+            ],
             "compat_map": {
-                "gpt-4o": "gemini-2.5-pro", "gpt-4o-mini": "gemini-2.5-flash",
-                "gpt-4": "gemini-2.5-pro", "gpt-4-turbo": "gemini-2.5-pro",
-                "gpt-3.5-turbo": "gemini-2.5-flash",
-                "claude-3-opus": "gemini-2.5-pro", "claude-3-sonnet": "gemini-2.5-flash",
-                "claude-3-haiku": "gemini-2.5-flash", "claude-3-5-sonnet": "gemini-2.5-pro",
-                "claude-opus-4": "gemini-2.5-pro", "claude-sonnet-4": "gemini-2.5-flash",
+                "gpt-4o": "gemini-3-flash-preview", "gpt-4o-mini": "gemini-3.1-flash-lite-preview",
+                "gpt-4": "gemini-3-flash-preview", "gpt-4-turbo": "gemini-3-flash-preview",
+                "gpt-3.5-turbo": "gemini-3.1-flash-lite-preview",
+                "claude-3-opus": "gemini-3-flash-preview", "claude-3-sonnet": "gemini-3.1-flash-lite-preview",
+                "claude-3-haiku": "gemini-3.1-flash-lite-preview", "claude-3-5-sonnet": "gemini-3-flash-preview",
+                "claude-opus-4": "gemini-3-flash-preview", "claude-sonnet-4": "gemini-3.1-flash-lite-preview",
             },
         },
         "backend": {

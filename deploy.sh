@@ -45,9 +45,13 @@ mkdir -p "$JAIKA_DIR/data/users" "$JAIKA_DIR/data/skills"
 # ── Run ──────────────────────────────────────────────────────
 echo "[5/5] Starting Jaika on 0.0.0.0:$PORT ..."
 cd "$JAIKA_DIR"
+# Workers × threads = max concurrent requests.
+# 4 workers × 4 threads = 16 slots — handles ~10 simultaneous users comfortably.
+# File-level locking (fcntl) in sessions.py and auth.py keeps writes safe under threads.
 exec "$VENV_DIR/bin/gunicorn" \
   --bind "0.0.0.0:$PORT" \
-  --workers 2 \
+  --workers 4 \
+  --threads 4 \
   --timeout 120 \
   --access-logfile - \
   "app:app"

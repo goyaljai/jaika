@@ -17,9 +17,71 @@ log = logging.getLogger(__name__)
 
 ENDPOINT = "https://cloudcode-pa.googleapis.com"
 CLI_VERSION = "0.36.0"
-MODEL_FALLBACK = ["gemini-2.5-flash", "gemini-2.0-flash"]
-MODEL_THINKING  = "gemini-2.5-flash"  # thinking via flash (saves pro quota)
-MODEL_TTS       = "gemini-2.5-flash"  # TTS via responseModalities AUDIO
+
+# Defaults — used when no models.json exists yet
+_DEFAULT_MODEL_CONFIG = {
+    "fallback": [
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ],
+    "thinking": "gemini-3-flash-preview",
+    "tts": "gemini-2.5-flash",
+}
+
+# Keep module-level names for backward-compat (TTS handler in app.py imports MODEL_TTS)
+MODEL_FALLBACK = _DEFAULT_MODEL_CONFIG["fallback"]
+MODEL_THINKING  = _DEFAULT_MODEL_CONFIG["thinking"]
+MODEL_TTS       = _DEFAULT_MODEL_CONFIG["tts"]  # gemini-2.5-flash supports audio modalities
+
+# ── Dynamic model config (admin-editable) ────────────────────────────────────
+_model_config_cache = None
+_model_config_ts = 0.0
+_MODEL_CONFIG_TTL = 60  # seconds
+_model_config_lock = threading.Lock()
+
+
+def _models_path():
+    data_dir = os.environ.get("JAIKA_DATA_DIR", "./data")
+    return os.path.join(data_dir, "models.json")
+
+
+def get_model_config() -> dict:
+    """Return current model config, reloading from disk if stale."""
+    global _model_config_cache, _model_config_ts
+    with _model_config_lock:
+        now = time.time()
+        if _model_config_cache is not None and (now - _model_config_ts) < _MODEL_CONFIG_TTL:
+            return dict(_model_config_cache)
+        path = _models_path()
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    loaded = json.load(f)
+                # Merge with defaults so missing keys always have a value
+                cfg = dict(_DEFAULT_MODEL_CONFIG)
+                cfg.update(loaded)
+                _model_config_cache = cfg
+                _model_config_ts = now
+                return dict(cfg)
+            except (json.JSONDecodeError, IOError):
+                pass
+        _model_config_cache = dict(_DEFAULT_MODEL_CONFIG)
+        _model_config_ts = now
+        return dict(_DEFAULT_MODEL_CONFIG)
+
+
+def save_model_config(config: dict):
+    """Persist model config to disk and invalidate cache."""
+    global _model_config_cache, _model_config_ts
+    path = _models_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with _model_config_lock:
+        with open(path, "w") as f:
+            json.dump(config, f, indent=2)
+        _model_config_cache = dict(config)
+        _model_config_ts = time.time()
 
 # ── Retry config (ported from gemini-cli) ────────────────────────────────────
 RETRY_MAX_ATTEMPTS = 3        # 1 initial + 2 retries (each retry = 1 API call against quota)
@@ -104,7 +166,7 @@ def discover_project_and_tier(user_id) -> dict:
             timeout=30,
         )
         if ob_resp.status_code == 200:
-            # Poll until done (max 30s)
+            # Poll until done (max 30s) — read result THEN decide whether to poll again
             for _ in range(6):
                 ob_data = ob_resp.json()
                 if ob_data.get("done"):
@@ -116,6 +178,10 @@ def discover_project_and_tier(user_id) -> dict:
                     data=json.dumps(onboard_payload),
                     timeout=30,
                 )
+                # Read and check the new response immediately (not deferred to next iteration)
+                ob_data = ob_resp.json()
+                if ob_data.get("done"):
+                    break
 
     result = {"project_id": project_id, "tier_id": tier_id, "tier_name": tier_name, "ts": time.time()}
     with _project_cache_lock:
@@ -221,6 +287,36 @@ def _headers(user_id):
     }
 
 
+def _refresh_headers(user_id):
+    """Force a token refresh and return new headers. Used on 401 from the API.
+
+    On 401, the access_token was stale/invalid. We:
+    1. Reset saved_at=0 to force get_access_token to call Google's refresh endpoint
+    2. Clear the per-user project ID cache (it may have been fetched with the bad token)
+    3. Return new headers with the freshly issued access_token
+    """
+    from auth import load_token, save_token
+    token = load_token(user_id)
+    if not token:
+        raise PermissionError("No token for user")
+    # Reset saved_at to 0 — forces get_access_token to refresh unconditionally
+    token["saved_at"] = 0
+    save_token(user_id, token)
+    # Clear project cache so _get_project_id re-fetches with the new token
+    with _project_cache_lock:
+        _project_cache.pop(user_id, None)
+    # Refresh the access token
+    new_access = get_access_token(user_id)
+    if not new_access:
+        raise PermissionError("Token refresh failed after 401")
+    log.info("[AUTH] uid=%s token force-refreshed after 401", user_id)
+    return {
+        "Authorization": f"Bearer {new_access}",
+        "Content-Type": "application/json",
+        "User-Agent": _USER_AGENT,
+    }
+
+
 def _build_contents(messages, files=None):
     contents = []
     for msg in messages:
@@ -273,23 +369,49 @@ def generate(user_id, messages, files=None, system_instruction=None,
     if system_instruction:
         request_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
-    gen_config = {}
-    if thinking:
-        gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
     if grounding:
         request_body["tools"] = [{"googleSearch": {}}]
+
+    # Base gen_config (no thinkingConfig) — used by fallback models
+    base_gen_config = {}
     if response_mime_type:
-        gen_config["responseMimeType"] = response_mime_type
+        base_gen_config["responseMimeType"] = response_mime_type
     if response_schema:
-        gen_config["responseSchema"] = response_schema
-    if gen_config:
-        request_body["generationConfig"] = gen_config
+        base_gen_config["responseSchema"] = response_schema
 
-    models = [MODEL_THINKING] if thinking else MODEL_FALLBACK
+    # Thinking gen_config — only for the designated thinking model
+    thinking_gen_config = dict(base_gen_config)
+    if thinking:
+        thinking_gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
+
+    cfg = get_model_config()
+    if thinking:
+        # Try thinking model first; fall back to regular chain without thinking
+        seen = set()
+        model_plan = []
+        for m, use_t in [(cfg["thinking"], True)] + [(m, False) for m in cfg["fallback"]]:
+            if m not in seen:
+                seen.add(m)
+                model_plan.append((m, use_t))
+    else:
+        model_plan = [(m, False) for m in cfg["fallback"]]
+
     url = f"{ENDPOINT}/v1internal:generateContent"
+    _t0 = time.time()
+    _models_tried = []
+    log.info("[GENERATE] uid=%s thinking=%s grounding=%s models=%s",
+             user_id, thinking, grounding, [m for m, _ in model_plan])
 
-    for model in models:
-        body = {"model": model, "project": project_id, "request": request_body}
+    for model_idx, (model, use_thinking) in enumerate(model_plan):
+        is_last_model = model_idx == len(model_plan) - 1
+        gc = thinking_gen_config if use_thinking else base_gen_config
+        current_request = dict(request_body)
+        if gc:
+            current_request["generationConfig"] = gc
+        elif "generationConfig" in current_request:
+            del current_request["generationConfig"]
+        body = {"model": model, "project": project_id, "request": current_request}
+        _models_tried.append(model)
 
         for attempt in range(RETRY_MAX_ATTEMPTS):
             try:
@@ -307,23 +429,49 @@ def generate(user_id, messages, files=None, system_instruction=None,
                     if text is None:
                         text = json.dumps(data, indent=2)
                     grounding_meta = data["response"]["candidates"][0].get("groundingMetadata")
+                    usage = data["response"].get("usageMetadata", {})
                 except (KeyError, IndexError):
                     text = json.dumps(data, indent=2)
                     grounding_meta = None
+                    usage = {}
+                latency_ms = int((time.time() - _t0) * 1000)
+                fallback_note = f" (fallback from {_models_tried[0]})" if len(_models_tried) > 1 else ""
+                log.info("[GENERATE] uid=%s model=%s%s latency=%dms in_tokens=%s out_tokens=%s",
+                         user_id, model, fallback_note, latency_ms,
+                         usage.get("promptTokenCount", "?"),
+                         usage.get("candidatesTokenCount", "?"))
                 result = {"text": check_output_guardrails(text)}
                 if grounding_meta:
                     result["grounding"] = grounding_meta
                 return result
 
+            if resp.status_code == 401:
+                # Stale/invalid access token — force refresh, re-fetch project, and retry
+                log.warning("[GENERATE] uid=%s 401 on attempt %d — refreshing token", user_id, attempt + 1)
+                try:
+                    headers = _refresh_headers(user_id)
+                    # project_id may be None if it was fetched with the invalid token;
+                    # re-fetch it now that we have a valid token
+                    new_project_id = _get_project_id(user_id)
+                    if new_project_id:
+                        project_id = new_project_id
+                        body["project"] = project_id
+                    continue  # retry with new token + project
+                except PermissionError as e:
+                    return {"error": f"Authentication failed: {e}"}
+
             if resp.status_code == 404:
-                log.warning("Model %s not found, falling back", model)
+                log.warning("[GENERATE] uid=%s model=%s not found, trying next", user_id, model)
                 break  # try next model
 
             if resp.status_code in (429, 503):
                 kind, value = _classify_error(resp)
                 if kind == "terminal":
-                    log.warning("Model %s: terminal quota error: %s", model, value)
-                    break  # try next model (different quota bucket possible)
+                    log.warning("[GENERATE] uid=%s model=%s terminal quota, trying next", user_id, model)
+                    break  # try next model
+                if not is_last_model:
+                    log.warning("[GENERATE] uid=%s model=%s 429 retryable, skipping to next model", user_id, model)
+                    break  # fall through to next model immediately
                 wait = _retry_delay(attempt, value)
                 log.info("Model %s: retryable, waiting %.1fs (attempt %d/%d)",
                          model, wait, attempt + 1, RETRY_MAX_ATTEMPTS)
@@ -333,6 +481,8 @@ def generate(user_id, messages, files=None, system_instruction=None,
             log.warning("[GEMINI] error body: %s", resp.text[:300])
             return {"error": f"API error ({resp.status_code}): {resp.text}"}
 
+    latency_ms = int((time.time() - _t0) * 1000)
+    log.error("[GENERATE] uid=%s all models exhausted tried=%s latency=%dms", user_id, _models_tried, latency_ms)
     return {"error": "Service temporarily busy. Please retry in a few seconds."}
 
 
@@ -349,23 +499,46 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
     if system_instruction:
         request_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
-    gen_config = {}
-    if thinking:
-        gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
     if grounding:
         request_body["tools"] = [{"googleSearch": {}}]
+
+    base_gen_config = {}
     if response_mime_type:
-        gen_config["responseMimeType"] = response_mime_type
+        base_gen_config["responseMimeType"] = response_mime_type
     if response_schema:
-        gen_config["responseSchema"] = response_schema
-    if gen_config:
-        request_body["generationConfig"] = gen_config
+        base_gen_config["responseSchema"] = response_schema
 
-    models = [MODEL_THINKING] if thinking else MODEL_FALLBACK
+    thinking_gen_config = dict(base_gen_config)
+    if thinking:
+        thinking_gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
+
+    cfg = get_model_config()
+    if thinking:
+        seen = set()
+        model_plan = []
+        for m, use_t in [(cfg["thinking"], True)] + [(m, False) for m in cfg["fallback"]]:
+            if m not in seen:
+                seen.add(m)
+                model_plan.append((m, use_t))
+    else:
+        model_plan = [(m, False) for m in cfg["fallback"]]
+
     url = f"{ENDPOINT}/v1internal:streamGenerateContent?alt=sse"
+    _t0 = time.time()
+    _models_tried = []
+    log.info("[STREAM] uid=%s thinking=%s grounding=%s models=%s",
+             user_id, thinking, grounding, [m for m, _ in model_plan])
 
-    for model in models:
-        body = {"model": model, "project": project_id, "request": request_body}
+    for model_idx, (model, use_thinking) in enumerate(model_plan):
+        is_last_model = model_idx == len(model_plan) - 1
+        gc = thinking_gen_config if use_thinking else base_gen_config
+        current_request = dict(request_body)
+        if gc:
+            current_request["generationConfig"] = gc
+        elif "generationConfig" in current_request:
+            del current_request["generationConfig"]
+        body = {"model": model, "project": project_id, "request": current_request}
+        _models_tried.append(model)
 
         # Streaming uses fewer retries (ported from gemini-cli: 4 max for mid-stream)
         max_attempts = 4
@@ -378,15 +551,31 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
 
             log.info("[GEMINI-STREAM] model=%s attempt=%d status=%s", model, attempt + 1, resp.status_code)
 
+            if resp.status_code == 401:
+                log.warning("[STREAM] uid=%s 401 on attempt %d — refreshing token", user_id, attempt + 1)
+                try:
+                    headers = _refresh_headers(user_id)
+                    new_project_id = _get_project_id(user_id)
+                    if new_project_id:
+                        project_id = new_project_id
+                        body["project"] = project_id
+                    continue  # retry with new token + project
+                except PermissionError as e:
+                    yield f"data: {json.dumps({'error': f'Authentication failed: {e}'})}\n\n"
+                    return
+
             if resp.status_code == 404:
-                log.warning("Model %s not found, falling back", model)
+                log.warning("[STREAM] uid=%s model=%s not found, trying next", user_id, model)
                 break  # try next model
 
             if resp.status_code in (429, 503):
                 kind, value = _classify_error(resp)
                 if kind == "terminal":
-                    log.warning("Model %s: terminal quota, falling back", model)
+                    log.warning("[STREAM] uid=%s model=%s terminal quota, trying next", user_id, model)
                     break  # try next model
+                if not is_last_model:
+                    log.warning("[STREAM] uid=%s model=%s 429 retryable, skipping to next model", user_id, model)
+                    break  # fall through to next model immediately
                 wait = _retry_delay(attempt, min(value, 10))  # shorter waits for streaming
                 log.info("Model %s: retryable, waiting %.1fs (attempt %d/%d)",
                          model, wait, attempt + 1, max_attempts)
@@ -398,6 +587,9 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
                 return
 
             # Success — stream the response
+            fallback_note = f" (fallback from {_models_tried[0]})" if len(_models_tried) > 1 else ""
+            ttfb_ms = int((time.time() - _t0) * 1000)
+            log.info("[STREAM] uid=%s model=%s%s ttfb=%dms", user_id, model, fallback_note, ttfb_ms)
             yield f"data: {json.dumps({'model': model, 'type': 'start'})}\n\n"
 
             for line in resp.iter_lines(decode_unicode=True):
@@ -415,9 +607,12 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
                     except (json.JSONDecodeError, KeyError, IndexError):
                         pass
 
+            total_ms = int((time.time() - _t0) * 1000)
+            log.info("[STREAM] uid=%s model=%s done total=%dms", user_id, model, total_ms)
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return
 
+    log.error("[STREAM] uid=%s all models exhausted tried=%s", user_id, _models_tried)
     yield f"data: {json.dumps({'error': 'Service temporarily busy. Please retry in a few seconds.'})}\n\n"
 
 

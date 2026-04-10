@@ -21,26 +21,27 @@ from prompt_engine import check_input_guardrails
 compat_bp = Blueprint("compat", __name__)
 
 SUPPORTED_MODELS = [
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
 ]
 
 # Map common OpenAI / Anthropic model names to Gemini equivalents
 MODEL_MAP = {
-    # OpenAI
-    "gpt-4o":            "gemini-2.5-pro",
-    "gpt-4o-mini":       "gemini-2.5-flash",
-    "gpt-4":             "gemini-2.5-pro",
-    "gpt-4-turbo":       "gemini-2.5-pro",
-    "gpt-3.5-turbo":     "gemini-2.5-flash",
-    # Anthropic
-    "claude-3-opus":         "gemini-2.5-pro",
-    "claude-3-sonnet":       "gemini-2.5-flash",
-    "claude-3-haiku":        "gemini-2.5-flash",
-    "claude-3-5-sonnet":     "gemini-2.5-pro",
-    "claude-opus-4":         "gemini-2.5-pro",
-    "claude-sonnet-4":       "gemini-2.5-flash",
+    # OpenAI — heavy → best model, mini/turbo → lite
+    "gpt-4o":            "gemini-3-flash-preview",
+    "gpt-4o-mini":       "gemini-3.1-flash-lite-preview",
+    "gpt-4":             "gemini-3-flash-preview",
+    "gpt-4-turbo":       "gemini-3-flash-preview",
+    "gpt-3.5-turbo":     "gemini-3.1-flash-lite-preview",
+    # Anthropic — opus → best, sonnet/haiku → lite
+    "claude-3-opus":         "gemini-3-flash-preview",
+    "claude-3-sonnet":       "gemini-3.1-flash-lite-preview",
+    "claude-3-haiku":        "gemini-3.1-flash-lite-preview",
+    "claude-3-5-sonnet":     "gemini-3-flash-preview",
+    "claude-opus-4":         "gemini-3-flash-preview",
+    "claude-sonnet-4":       "gemini-3.1-flash-lite-preview",
 }
 
 
@@ -134,9 +135,9 @@ def _anthropic_messages_to_gemini(messages, system=None):
 
 
 def _resolve_model(requested):
-    """Map requested model name to a Gemini model name. Always falls back to gemini-2.5-flash."""
+    """Map requested model name to a Gemini model name. Always falls back to gemini-3-flash-preview."""
     if not requested:
-        return "gemini-2.5-flash"
+        return "gemini-3-flash-preview"
     lower = requested.lower()
     mapped = MODEL_MAP.get(lower)
     if mapped:
@@ -145,7 +146,7 @@ def _resolve_model(requested):
     if lower in [m.lower() for m in SUPPORTED_MODELS]:
         return lower
     # Unknown model → fallback
-    return "gemini-2.5-flash"
+    return "gemini-3-flash-preview"
 
 
 # ── OpenAI format ─────────────────────────────────────────────────────────────
@@ -171,7 +172,7 @@ def openai_chat_completions():
     data = request.get_json(force=True)
     messages = data.get("messages", [])
     do_stream = data.get("stream", False)
-    model = _resolve_model(data.get("model", "")) or "gemini-2.5-flash"
+    model = _resolve_model(data.get("model", "")) or "gemini-3-flash-preview"
 
     gemini_msgs, system_instruction = _openai_messages_to_gemini(messages)
 
@@ -257,7 +258,7 @@ def anthropic_messages():
     messages = data.get("messages", [])
     system = data.get("system", None)
     do_stream = data.get("stream", False)
-    model = _resolve_model(data.get("model", "")) or "gemini-2.5-flash"
+    model = _resolve_model(data.get("model", "")) or "gemini-3-flash-preview"
 
     gemini_msgs, system_instruction = _anthropic_messages_to_gemini(messages, system)
 

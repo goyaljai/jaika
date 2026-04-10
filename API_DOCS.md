@@ -58,7 +58,7 @@ cloudcode-pa.googleapis.com  (Google Gemini backend)
 8. gemini.py → POST cloudcode-pa.googleapis.com/v1internal:generateContent
                headers: Authorization: Bearer <google_oauth_token>
                body: {model, project, request: {contents, systemInstruction, generationConfig}}
-9. gemini.py → model fallback: gemini-2.5-flash → 2.5-pro → 2.0-flash on 404/429/503
+9. gemini.py → model fallback: gemini-3-flash-preview → gemini-3.1-flash-lite-preview → gemini-2.5-flash → gemini-2.5-flash-lite on 404/429/503
 10. gemini.py → check_output_guardrails() — strips credentials, replaces brand names
 11. app.py  →  save assistant reply to session history
 12. app.py  →  return {type, text, session_id} to client
@@ -87,6 +87,7 @@ All data is on the local filesystem. No external database.
 data/
 ├── admins.json           # list of admin emails
 ├── pro_users.json        # list of pro emails
+├── models.json           # model config: fallback chain, thinking model, TTS model (admin-managed)
 ├── contacts.json         # master user registry (uid → email, refresh_token)
 └── users/
     └── {user_id}/
@@ -102,8 +103,34 @@ data/
 
 - **Login flow**: User runs `curl https://server/login | bash` → browser opens Google OAuth → script catches the callback code → sends to `/auth/exchange` → server exchanges for tokens → saves to `data/users/{uid}/token.json`
 - **Request auth**: Every request includes `X-User-Id: <uid>` header. Server loads the token for that uid.
-- **Token refresh**: `auth.get_access_token(uid)` automatically calls Google's token refresh endpoint if the token expires within 5 minutes.
+- **Token refresh (on-demand)**: `auth.get_access_token(uid)` automatically calls Google's token refresh endpoint if the token expires within 5 minutes (`expires_in - 300`).
+- **Token refresh (background)**: A background daemon thread (`token-refresh`) runs every 30 minutes and proactively refreshes tokens for all known users. This prevents the first request after a long idle period from hitting a stale token.
 - **Compat routers**: OpenAI uses `Authorization: Bearer <uid>`, Anthropic uses `x-api-key: <uid>`, Gemini native uses `?key=<uid>`. All are normalized to uid → token lookup.
+
+### OAuth Token Lifecycle
+
+| Field | Description |
+|---|---|
+| `access_token` | Short-lived API credential. Valid for `expires_in` seconds (typically 3599 = ~1 hour). |
+| `expires_in` | Seconds until the access_token expires. e.g. `3599` = ~1 hour. After this, the token cannot be used. |
+| `refresh_token` | Long-lived credential used to get a new access_token without user re-login. Stays valid indefinitely unless revoked. |
+| `saved_at` | Unix timestamp when the token was saved. Used to compute `expires_at = saved_at + expires_in`. |
+
+**Token expiry flow:**
+```
+1. User makes a request
+2. get_access_token(uid) checks: time.time() > saved_at + expires_in - 300
+3. If expired (within 5min buffer): call Google /token with refresh_token
+4. Google returns new access_token (+ new expires_in)
+5. Save updated token.json
+6. Proceed with the new access_token
+```
+
+**When refresh_token gets revoked:**
+- User explicitly revokes access in Google Account settings
+- Token unused for 6+ months (Google inactivity policy)
+- App re-authenticates with `prompt=consent` (issues a new refresh_token, invalidating old one)
+- In these cases, user must re-login: `curl -sL https://server/login | bash`
 
 ### Multi-tenant Isolation
 
@@ -138,7 +165,10 @@ Enforced server-side in `app.py` before any API call:
 - **Project discovery**: `loadCodeAssist` call → returns `cloudaicompanionProject` ID (cached 1hr per user)
 - **Onboarding**: If user has no `currentTier`, server calls `onboardUser` automatically
 - **Streaming**: `/v1internal:streamGenerateContent?alt=sse` — server-sent events, proxied to client
-- **Model names sent**: Exact Gemini model IDs, e.g. `gemini-2.5-flash`, `gemini-2.5-pro`
+- **Model names sent**: Exact Gemini model IDs, e.g. `gemini-3-flash-preview`, `gemini-2.5-flash`
+- **Model fallback**: On 404/429/503, immediately skip to next model (no waiting). Only the last model in the chain retries up to 3× with exponential backoff. This prevents long timeouts when preview models are rate-limited.
+- **Fallback chain**: `gemini-3-flash-preview → gemini-3.1-flash-lite-preview → gemini-2.5-flash → gemini-2.5-flash-lite`
+- **TTS model**: Uses `gemini-2.5-flash` first (supports audio modalities), then falls back through the chain if not available.
 
 ### Output Sanitization Pipeline
 
@@ -248,7 +278,7 @@ Send a message to Gemini. Supports text, file attachments, thinking mode, ground
 
 **Response (stream=true):** Server-Sent Events (SSE)
 ```
-data: {"model": "gemini-2.5-flash", "type": "start"}
+data: {"model": "gemini-3-flash-preview", "type": "start"}
 data: {"text": "Hello"}
 data: {"text": " world"}
 data: {"type": "done"}
@@ -257,10 +287,10 @@ data: {"type": "done"}
 **Notes:**
 - If no `session_id` is given, a new session is created and its ID is returned.
 - `grounding: true` enables Google Search — response includes `groundingMetadata`.
-- `thinking: true` uses `gemini-2.5-pro` with extended reasoning (slower, better for complex tasks).
+- `thinking: true` uses the configured thinking model (default: `gemini-3-flash-preview`) with extended reasoning.
 - `response_format: "json"` tells Gemini to output valid JSON.
 - Per-user memory facts are automatically injected into the system prompt.
-- Model fallback: `gemini-2.5-flash → gemini-2.5-pro → gemini-2.0-flash` on 404/429/503.
+- Model fallback: `gemini-3-flash-preview → gemini-3.1-flash-lite-preview → gemini-2.5-flash → gemini-2.5-flash-lite` on 404/429/503.
 
 **Examples:**
 ```bash
@@ -319,7 +349,9 @@ curl -X POST $SERVER/api/voice-prompt \
 Text-to-speech via Gemini `responseModalities: AUDIO`.
 
 **Body:** `{"text": "string", "voice": "Aoede"}` — Voices: Aoede, Charon, Fenrir, Kore, Puck.
-**Response:** `audio/wav` binary, or `502` if the backend doesn't support audio output.
+**Response:** `audio/wav` binary on success, or `502 {"error": "TTS not available. Audio output is not allowlisted on this backend."}` if the backend doesn't support audio output for this account.
+
+> **Backend limitation**: Audio output (`responseModalities: AUDIO`) requires the user's Google account to be allowlisted by the `cloudcode-pa.googleapis.com` backend. This is not enabled for all accounts. If your account returns "not allowlisted", TTS will not work regardless of model choice. All 4 models (gemini-3-flash-preview, gemini-3.1-flash-lite-preview, gemini-2.5-flash, gemini-2.5-flash-lite) are attempted before returning an error.
 
 ```bash
 curl -X POST $SERVER/api/tts \
@@ -547,8 +579,8 @@ Auth: `Authorization: Bearer <user_id>`
 
 | OpenAI model | Maps to |
 |---|---|
-| `gpt-4o`, `gpt-4`, `gpt-4-turbo` | `gemini-2.5-pro` |
-| `gpt-4o-mini`, `gpt-3.5-turbo` | `gemini-2.5-flash` |
+| `gpt-4o`, `gpt-4`, `gpt-4-turbo` | `gemini-3-flash-preview` |
+| `gpt-4o-mini`, `gpt-3.5-turbo` | `gemini-3.1-flash-lite-preview` |
 | `gemini-*` | used as-is |
 
 ```bash
@@ -558,7 +590,7 @@ curl $SERVER/v1/models -H "Authorization: Bearer $UID"
 # Chat completion
 curl -X POST $SERVER/v1/chat/completions \
   -H "Authorization: Bearer $UID" -H "Content-Type: application/json" \
-  -d '{"model": "gemini-2.5-pro", "messages": [{"role": "user", "content": "Hello"}]}'
+  -d '{"model": "gemini-3-flash-preview", "messages": [{"role": "user", "content": "Hello"}]}'
 
 # Streaming
 curl -N -X POST $SERVER/v1/chat/completions \
@@ -571,7 +603,7 @@ curl -N -X POST $SERVER/v1/chat/completions \
 import openai
 client = openai.OpenAI(base_url="https://your-server.com/v1", api_key="YOUR_UID")
 resp = client.chat.completions.create(
-    model="gemini-2.5-pro",
+    model="gemini-3-flash-preview",
     messages=[{"role": "user", "content": "Hello"}]
 )
 print(resp.choices[0].message.content)
@@ -583,9 +615,8 @@ Auth: `x-api-key: <user_id>`
 
 | Claude model | Maps to |
 |---|---|
-| `claude-opus-4`, `claude-3-opus` | `gemini-2.5-pro` |
-| `claude-sonnet-4`, `claude-3-5-sonnet` | `gemini-2.5-flash` |
-| `claude-haiku-*` | `gemini-2.5-flash` |
+| `claude-opus-4`, `claude-3-opus`, `claude-3-5-sonnet` | `gemini-3-flash-preview` |
+| `claude-sonnet-4`, `claude-3-sonnet`, `claude-haiku-*` | `gemini-3.1-flash-lite-preview` |
 
 ```bash
 curl -X POST $SERVER/v1/messages \
@@ -613,12 +644,12 @@ Auth: `?key=<user_id>` query param
 curl "$SERVER/v1beta/models?key=$UID"
 
 # Generate content
-curl -X POST "$SERVER/v1beta/models/gemini-2.5-flash:generateContent?key=$UID" \
+curl -X POST "$SERVER/v1beta/models/gemini-3-flash-preview:generateContent?key=$UID" \
   -H "Content-Type: application/json" \
   -d '{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}'
 
 # Streaming
-curl -N -X POST "$SERVER/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=$UID" \
+curl -N -X POST "$SERVER/v1beta/models/gemini-3-flash-preview:streamGenerateContent?key=$UID" \
   -H "Content-Type: application/json" \
   -d '{"contents": [{"role": "user", "parts": [{"text": "Stream this"}]}]}'
 ```
@@ -659,6 +690,59 @@ Download master contact list (JSON).
 #### `GET /api/eval/guardrails`
 Run input guardrail test suite (instant, no API calls).
 
+#### `GET /api/admin/models`
+Get the current model configuration (fallback chain, thinking model, TTS model).
+
+**Response:**
+```json
+{
+  "fallback": ["gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+  "thinking": "gemini-3-flash-preview",
+  "tts": "gemini-3-flash-preview"
+}
+```
+
+```bash
+curl $SERVER/api/admin/models -H "X-User-Id: $UID"
+```
+
+#### `POST /api/admin/models`
+Partially update the model configuration. All fields are optional — only provided fields are updated.
+
+**Body:**
+```json
+{
+  "fallback": ["gemini-3-flash-preview", "gemini-2.5-flash"],
+  "thinking": "gemini-3-flash-preview",
+  "tts": "gemini-3-flash-preview"
+}
+```
+
+```bash
+# Set thinking model
+curl -X POST $SERVER/api/admin/models \
+  -H "X-User-Id: $UID" -H "Content-Type: application/json" \
+  -d '{"thinking": "gemini-3-flash-preview"}'
+
+# Replace entire fallback chain
+curl -X POST $SERVER/api/admin/models \
+  -H "X-User-Id: $UID" -H "Content-Type: application/json" \
+  -d '{"fallback": ["gemini-3-flash-preview", "gemini-2.5-flash"]}'
+```
+
+#### `DELETE /api/admin/models/fallback/<model>`
+Remove a single model from the fallback chain.
+
+```bash
+curl -X DELETE $SERVER/api/admin/models/fallback/gemini-3.1-flash-lite-preview \
+  -H "X-User-Id: $UID"
+```
+
+**Notes:**
+- Changes take effect within 60 seconds (cache TTL).
+- Fallback chain must have at least one model; the delete is silently ignored if the model is not in the list.
+- Config is persisted to `data/models.json` and survives server restarts.
+
 ---
 
 ## Error Responses
@@ -680,7 +764,7 @@ Run input guardrail test suite (instant, no API calls).
 - **No CLI subprocess.** All Gemini calls go directly to `cloudcode-pa.googleapis.com/v1internal`.
 - **Per-user isolation.** All data lives under `data/users/{user_id}/` — sessions, uploads, outputs, memory, token. Two users sharing a server have zero overlap.
 - **Token refresh.** OAuth tokens are refreshed automatically 5 minutes before expiry.
-- **Model fallback.** On 404/429/503: tries `gemini-2.5-flash → gemini-2.5-pro → gemini-2.0-flash`.
+- **Model fallback.** On 404/429/503 admin-configurable fallback chain (default: `gemini-3-flash-preview → gemini-3.1-flash-lite-preview → gemini-2.5-flash → gemini-2.5-flash-lite`). Managed via `GET/POST /api/admin/models`, persisted to `data/models.json`, cached for 60 seconds.
 - **Brand guardrails.** Output is filtered to replace "Gemini Code Assist" → "Jaika" etc.
 - **Input guardrails.** Prompt injection patterns are blocked before hitting the model.
 - **File TTL.** Uploaded files auto-delete after 1 hour. Generated outputs after 30 minutes.

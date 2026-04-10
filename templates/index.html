@@ -526,9 +526,30 @@ resp = client.chat.completions.create(
           <button class="hosting-guide-btn" onclick="toggleAdminEmails()" style="flex:1">Admins</button>
           <button class="hosting-guide-btn" onclick="toggleProUsers()" style="flex:1">Pro Users</button>
         </div>
-        <div style="display:flex;gap:4px;margin-bottom:8px">
+        <div style="display:flex;gap:4px;margin-bottom:4px">
           <button class="hosting-guide-btn" onclick="toggleApiDocs()" style="flex:1">API Docs</button>
           <button class="hosting-guide-btn" onclick="downloadAllData()" style="flex:1">Export</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <button class="hosting-guide-btn" onclick="toggleModels()" style="flex:1">Models</button>
+        </div>
+        <div id="models-section" style="display:none;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Fallback Chain</div>
+          <div class="admin-email-list" id="models-fallback-list"></div>
+          <div class="admin-add-row">
+            <input type="text" id="models-fallback-input" placeholder="gemini-2.5-pro" style="font-family:monospace;font-size:12px">
+            <button onclick="addFallbackModel()">Add</button>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Thinking Model</div>
+          <div class="admin-add-row">
+            <input type="text" id="models-thinking-input" placeholder="gemini-2.5-flash" style="font-family:monospace;font-size:12px">
+            <button onclick="saveThinkingModel()">Save</button>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">TTS Model</div>
+          <div class="admin-add-row">
+            <input type="text" id="models-tts-input" placeholder="gemini-2.5-flash" style="font-family:monospace;font-size:12px">
+            <button onclick="saveTtsModel()">Save</button>
+          </div>
         </div>
         <div id="admin-emails-section" style="display:none">
           <div class="admin-email-list" id="admin-email-list"></div>
@@ -1218,6 +1239,71 @@ async function removeProEmail(email) {
   loadProEmails();
 }
 
+// ── Models ────────────────────────────────────────────────
+function toggleModels() {
+  var el = document.getElementById('models-section');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (el.style.display === 'block') loadModels();
+}
+
+async function loadModels() {
+  try {
+    var r = await apiFetch('/api/admin/models');
+    var cfg = await r.json();
+    var list = document.getElementById('models-fallback-list');
+    list.innerHTML = (cfg.fallback || []).map(function(m) {
+      return '<div class="admin-email-item"><span style="font-family:monospace;font-size:12px">' + escHtml(m) + '</span>' +
+        '<button onclick="removeFallbackModel(\'' + escHtml(m) + '\')">&times;</button></div>';
+    }).join('');
+    document.getElementById('models-thinking-input').value = cfg.thinking || '';
+    document.getElementById('models-tts-input').value = cfg.tts || '';
+  } catch(e) {}
+}
+
+async function addFallbackModel() {
+  var input = document.getElementById('models-fallback-input');
+  var model = input.value.trim();
+  if (!model) return;
+  var r = await apiFetch('/api/admin/models');
+  var cfg = await r.json();
+  var fallback = cfg.fallback || [];
+  if (fallback.indexOf(model) === -1) fallback.push(model);
+  await apiFetch('/api/admin/models', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({fallback: fallback})
+  });
+  input.value = '';
+  loadModels();
+}
+
+async function removeFallbackModel(model) {
+  await apiFetch('/api/admin/models/fallback/' + encodeURIComponent(model), {method: 'DELETE'});
+  loadModels();
+}
+
+async function saveThinkingModel() {
+  var model = document.getElementById('models-thinking-input').value.trim();
+  if (!model) return;
+  await apiFetch('/api/admin/models', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({thinking: model})
+  });
+  loadModels();
+}
+
+async function saveTtsModel() {
+  var model = document.getElementById('models-tts-input').value.trim();
+  if (!model) return;
+  await apiFetch('/api/admin/models', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tts: model})
+  });
+  loadModels();
+}
+
 // ── Admin Panels ──────────────────────────────────────────
 function toggleHostingGuide() {
   document.getElementById('hosting-guide-overlay').classList.toggle('open');
@@ -1327,18 +1413,18 @@ function renderApiDocs() {
   // ── Compat APIs ──
   html += sec('OpenAI-Compatible API', 'var(--yellow)') +
     block('List models', 'curl ' + S + '/v1/models \\\n  -H "Authorization: Bearer ' + U + '"') +
-    block('Chat completion', 'curl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gemini-2.5-pro", "messages": [{"role": "user", "content": "Hello"}]}\'') +
-    block('Streaming chat', 'curl -N -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hi"}], "stream": true}\'\n\n# GPT model names are mapped → Gemini: gpt-4o→2.5-pro, gpt-4o-mini→2.5-flash') +
-    block('Python OpenAI client', 'import openai\n\nclient = openai.OpenAI(\n    base_url="' + S + '/v1",\n    api_key="' + U + '"\n)\n\n# Standard chat\nresp = client.chat.completions.create(\n    model="gemini-2.5-pro",\n    messages=[{"role": "user", "content": "Explain AI"}]\n)\nprint(resp.choices[0].message.content)\n\n# Streaming\nstream = client.chat.completions.create(\n    model="gemini-2.5-flash",\n    messages=[{"role": "user", "content": "Tell me a joke"}],\n    stream=True\n)\nfor chunk in stream:\n    if chunk.choices[0].delta.content:\n        print(chunk.choices[0].delta.content, end="", flush=True)');
+    block('Chat completion', 'curl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gemini-3-flash-preview", "messages": [{"role": "user", "content": "Hello"}]}\'') +
+    block('Streaming chat', 'curl -N -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hi"}], "stream": true}\'\n\n# GPT model names are mapped → Gemini: gpt-4o→gemini-3-flash-preview, gpt-4o-mini→gemini-3.1-flash-lite-preview') +
+    block('Python OpenAI client', 'import openai\n\nclient = openai.OpenAI(\n    base_url="' + S + '/v1",\n    api_key="' + U + '"\n)\n\n# Standard chat\nresp = client.chat.completions.create(\n    model="gemini-3-flash-preview",\n    messages=[{"role": "user", "content": "Explain AI"}]\n)\nprint(resp.choices[0].message.content)\n\n# Streaming\nstream = client.chat.completions.create(\n    model="gemini-3.1-flash-lite-preview",\n    messages=[{"role": "user", "content": "Tell me a joke"}],\n    stream=True\n)\nfor chunk in stream:\n    if chunk.choices[0].delta.content:\n        print(chunk.choices[0].delta.content, end="", flush=True)');
 
   html += sec('Anthropic-Compatible API', 'var(--yellow)') +
-    block('Messages', 'curl -X POST ' + S + '/v1/messages \\\n  -H "x-api-key: ' + U + '" ' + C + ' \\\n  -d \'{"model": "claude-opus-4", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 1024}\'\n\n# Claude model names are mapped → Gemini: claude-opus-4→2.5-pro, claude-sonnet-4→2.5-flash') +
+    block('Messages', 'curl -X POST ' + S + '/v1/messages \\\n  -H "x-api-key: ' + U + '" ' + C + ' \\\n  -d \'{"model": "claude-opus-4", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 1024}\'\n\n# Claude model names are mapped → Gemini: claude-opus-4→gemini-3-flash-preview, claude-sonnet-4→gemini-3.1-flash-lite-preview') +
     block('Python Anthropic client', 'import anthropic\n\nclient = anthropic.Anthropic(\n    base_url="' + S + '",\n    api_key="' + U + '"\n)\n\nmsg = client.messages.create(\n    model="claude-opus-4",\n    max_tokens=1024,\n    messages=[{"role": "user", "content": "Hello, Claude"}]\n)\nprint(msg.content[0].text)');
 
   html += sec('Gemini-Native API', 'var(--yellow)') +
     block('List models', 'curl "' + S + '/v1beta/models?key=' + U + '"') +
-    block('Generate content', 'curl -X POST "' + S + '/v1beta/models/gemini-2.5-flash:generateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}\'') +
-    block('Streaming generate', 'curl -N -X POST "' + S + '/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Stream this"}]}]}\'');
+    block('Generate content', 'curl -X POST "' + S + '/v1beta/models/gemini-3-flash-preview:generateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}\'') +
+    block('Streaming generate', 'curl -N -X POST "' + S + '/v1beta/models/gemini-3-flash-preview:streamGenerateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Stream this"}]}]}\'');
 
   // ── Admin (only shown to admins) ──
   if (isAdmin) {
@@ -1352,7 +1438,12 @@ function renderApiDocs() {
       block('Pro users', 'curl ' + S + '/api/admin/pro ' + H + '\ncurl -X POST ' + S + '/api/admin/pro ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'\ncurl -X DELETE ' + S + '/api/admin/pro ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'') +
       block('Download contacts', 'curl ' + S + '/api/admin/contacts?format=download ' + H + ' -o contacts.json') +
       block('Clear user sessions', 'curl -X DELETE ' + S + '/api/admin/users/USER_ID/sessions ' + H) +
-      block('Run guardrail evals', 'curl ' + S + '/api/eval/guardrails ' + H);
+      block('Run guardrail evals', 'curl ' + S + '/api/eval/guardrails ' + H) +
+      block('Get model config', 'curl ' + S + '/api/admin/models ' + H + '\n\n# Returns: {"fallback":[...], "thinking":"...", "tts":"..."}') +
+      block('Add model to fallback chain', 'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"fallback": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]}\'\n\n# Replaces entire fallback list') +
+      block('Remove model from fallback chain', 'curl -X DELETE ' + S + '/api/admin/models/fallback/gemini-2.5-pro ' + H + '\n\n# Replace gemini-2.5-pro with any model name to remove') +
+      block('Set thinking model', 'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"thinking": "gemini-2.5-pro"}\'') +
+      block('Set TTS model', 'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"tts": "gemini-2.5-flash"}\'');
   }
 
   html += '<div style="margin-top:24px;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px">' +
@@ -1556,6 +1647,7 @@ async function sendMessage() {
           else if (d.error) { modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(d.error) + '</span>'; }
           else if (d.text) { fullText += d.text; modelDiv.innerHTML = renderMd(fullText); document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight; }
           else if (d.type === 'done') { try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {} }
+          else if (d.type === 'suggest_grounding') { showGroundingSuggestion(d.prompt, d.session_id); }
         } catch(e) {}
       }
     }
@@ -1567,6 +1659,68 @@ async function sendMessage() {
     loadSessions();
   } catch(e) {
     modelDiv.innerHTML = '<span style="color:var(--red)">Jaika is down. Contact support for help.</span>';
+  } finally {
+    isStreaming = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+}
+
+function showGroundingSuggestion(prompt, sessionId) {
+  var user = getUserData();
+  if (!user.is_admin && !user.is_pro) return;  // only show for admin/pro
+  var existing = document.getElementById('grounding-suggestion');
+  if (existing) existing.remove();
+  var bar = document.createElement('div');
+  bar.id = 'grounding-suggestion';
+  bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;margin:0 0 8px 0;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.2);border-radius:8px;font-size:12px;color:var(--text2)';
+  bar.innerHTML = '<span style="color:var(--accent)">🔍</span><span>This might need up-to-date info.</span>'
+    + '<button onclick="searchWithGrounding()" style="margin-left:auto;background:rgba(88,166,255,0.15);border:1px solid rgba(88,166,255,0.3);border-radius:6px;color:var(--accent);padding:3px 10px;cursor:pointer;font-size:12px;font-weight:600">Search Web</button>'
+    + '<button onclick="document.getElementById(\'grounding-suggestion\').remove()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;padding:0 2px">&times;</button>';
+  bar._prompt = prompt;
+  bar._sessionId = sessionId;
+  var container = document.getElementById('chat-messages');
+  container.appendChild(bar);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function searchWithGrounding() {
+  var bar = document.getElementById('grounding-suggestion');
+  if (!bar) return;
+  var prompt = bar._prompt;
+  var sessionId = bar._sessionId;
+  bar.remove();
+  if (!prompt) return;
+  // Re-send the same prompt with grounding enabled
+  appendMessage('user', '<span style="color:var(--text2);font-size:11px">🔍 Web search:</span><br>' + escHtml(prompt));
+  var modelDiv = appendMessage('model', '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>');
+  isStreaming = true;
+  document.getElementById('send-btn').disabled = true;
+  var fullText = '';
+  try {
+    var r = await apiFetch('/api/prompt', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({prompt: prompt, session_id: sessionId, stream: true, grounding: true})});
+    if (!r.ok) { modelDiv.innerHTML = '<span style="color:var(--red)">Search failed</span>'; return; }
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, {stream: true});
+      var lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (var i = 0; i < lines.length; i++) {
+        if (!lines[i].startsWith('data: ')) continue;
+        try {
+          var d = JSON.parse(lines[i].slice(6));
+          if (d.error) { modelDiv.innerHTML = '<span style="color:var(--red)">' + escHtml(d.error) + '</span>'; }
+          else if (d.text) { fullText += d.text; modelDiv.innerHTML = renderMd(fullText); document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight; }
+          else if (d.type === 'done') { try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {} }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    modelDiv.innerHTML = '<span style="color:var(--red)">Search failed</span>';
   } finally {
     isStreaming = false;
     document.getElementById('send-btn').disabled = false;
