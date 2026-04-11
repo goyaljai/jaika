@@ -191,6 +191,42 @@ def pro_page():
     return render_template("pro.html")
 
 
+# ── Public Bot Pages ─────────────────────────────────────────────────────────
+
+_BOT_CONFIGS = {
+    "mcdonalds": {
+        "uid": "116542085266142929154",  # jaipriyanka.y24@gmail.com
+        "title": "McBot",
+        "subtitle": "McDonald's India Virtual Assistant",
+        "color": "#DA291C",
+        "accent": "#FFC72C",
+        "logo": "🍔",
+        "welcome": "Hi there! I'm McBot 🍔 Ask me about our menu, offers, or delivery!",
+        "placeholder": "Ask about menu, offers, delivery...",
+    },
+    "goyaljai": {
+        "uid": "112750385266622618824",  # goyaljai.020796@gmail.com
+        "title": "Jai's AI Twin",
+        "subtitle": "Ask me anything about Jai Goyal",
+        "color": "#0077B5",
+        "accent": "#00a0dc",
+        "logo": "👨‍💻",
+        "welcome": "Hi! I'm Jai's AI twin 👋 Ask me about Jai's experience, skills, or background.",
+        "placeholder": "Ask about experience, skills, education...",
+    },
+}
+
+
+@app.route("/mcdonalds")
+def bot_mcdonalds():
+    return render_template("bot_mcdonalds.html")
+
+
+@app.route("/goyaljai")
+def bot_goyaljai():
+    return render_template("bot_goyaljai.html")
+
+
 @app.route("/slides")
 @login_required
 def slides():
@@ -1025,17 +1061,17 @@ def generate_video():
             return jsonify({"error": "Generation limit reached (5/day). Upgrade to Pro."}), 429
         _inc_file_gen_count(uid)
 
-    from gemini import gemini_generate_file
-    content, error = gemini_generate_file(uid, prompt_text, "video")
+    from gemini import generate_video_veo
+    video_bytes, error = generate_video_veo(prompt_text)
     if error:
         return jsonify({"error": error}), 502
 
-    fname = f"animation_{os.urandom(4).hex()}.html"
+    fname = f"video_{os.urandom(4).hex()}.mp4"
     out_dir = os.path.join(DATA_DIR, "users", uid, "outputs")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, fname)
-    with open(out_path, "w") as f:
-        f.write(content)
+    with open(out_path, "wb") as f:
+        f.write(video_bytes)
 
     def _cleanup():
         try:
@@ -1048,8 +1084,8 @@ def generate_video():
     return jsonify({
         "file_url": f"/api/download/{uid}/{fname}",
         "filename": fname,
-        "mime_type": "text/html",
-        "size": len(content),
+        "mime_type": "video/mp4",
+        "size": len(video_bytes),
         "remaining": remaining,
     })
 
@@ -1164,20 +1200,24 @@ def _save_memory(uid, facts):
 @app.route("/api/memory", methods=["GET"])
 @login_required
 def memory_list():
-    """List all memory facts for the current user."""
+    """List all memory facts for the current user. Pro/Admin only."""
     uid = _user_id()
+    if not is_admin(uid) and not is_pro(uid):
+        return jsonify({"error": "Persistent memory is a Pro feature. Upgrade at /pro"}), 403
     return jsonify({"facts": _load_memory(uid)})
 
 
 @app.route("/api/memory", methods=["POST"])
 @login_required
 def memory_add():
-    """Add a memory fact.
+    """Add a memory fact. Pro/Admin only.
 
     Body: {fact: string}
     Returns: {facts: [...all facts...]}
     """
     uid = _user_id()
+    if not is_admin(uid) and not is_pro(uid):
+        return jsonify({"error": "Persistent memory is a Pro feature. Upgrade at /pro"}), 403
     data = request.get_json(force=True)
     fact = (data.get("fact") or "").strip()
     if not fact:
@@ -1192,8 +1232,10 @@ def memory_add():
 @app.route("/api/memory/<int:index>", methods=["DELETE"])
 @login_required
 def memory_delete(index):
-    """Delete a memory fact by index (0-based)."""
+    """Delete a memory fact by index (0-based). Pro/Admin only."""
     uid = _user_id()
+    if not is_admin(uid) and not is_pro(uid):
+        return jsonify({"error": "Persistent memory is a Pro feature. Upgrade at /pro"}), 403
     facts = _load_memory(uid)
     if index < 0 or index >= len(facts):
         return jsonify({"error": "Index out of range"}), 404
@@ -1205,8 +1247,10 @@ def memory_delete(index):
 @app.route("/api/memory", methods=["DELETE"])
 @login_required
 def memory_clear():
-    """Clear all memory facts."""
+    """Clear all memory facts. Pro/Admin only."""
     uid = _user_id()
+    if not is_admin(uid) and not is_pro(uid):
+        return jsonify({"error": "Persistent memory is a Pro feature. Upgrade at /pro"}), 403
     _save_memory(uid, [])
     return jsonify({"facts": []})
 
@@ -1231,58 +1275,13 @@ def tts():
     if not text:
         return jsonify({"error": "text required"}), 400
 
-    from gemini import _headers as gem_headers, _get_project_id, ENDPOINT, get_model_config
-    import requests as http_requests
-
-    headers = gem_headers(uid)
-    project_id = _get_project_id(uid)
-
-    request_body = {
-        "contents": [{"role": "user", "parts": [{"text": text}]}],
-        "generationConfig": {
-            "responseModalities": ["AUDIO"],
-            "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
-        },
-    }
-
-    # Try TTS-capable models; not all models support AUDIO responseModalities
-    cfg = get_model_config()
-    tts_models = [cfg.get("tts", "gemini-2.5-flash")] + [m for m in cfg.get("fallback", []) if m != cfg.get("tts")]
-
-    last_status = None
-    last_body = ""
-    for tts_model in tts_models:
-        body = {"model": tts_model, "project": project_id, "request": request_body}
-        try:
-            resp = http_requests.post(
-                f"{ENDPOINT}/v1internal:generateContent",
-                headers=headers, json=body, timeout=60,
-            )
-        except Exception as e:
-            return jsonify({"error": f"Request failed: {e}"}), 502
-
-        log.info("[TTS] uid=%s model=%s status=%s", uid, tts_model, resp.status_code)
-
-        if resp.status_code == 200:
-            try:
-                data_resp = resp.json()
-                parts = data_resp["response"]["candidates"][0]["content"]["parts"]
-                audio_b64 = next(p["inline_data"]["data"] for p in parts if "inline_data" in p)
-                audio_bytes = base64.b64decode(audio_b64)
-                audio_mime = parts[0].get("inline_data", {}).get("mimeType", "audio/wav")
-                return Response(audio_bytes, mimetype=audio_mime,
-                                headers={"Content-Disposition": "inline; filename=speech.wav"})
-            except (KeyError, IndexError, StopIteration):
-                log.warning("[TTS] uid=%s model=%s no audio in response", uid, tts_model)
-                continue
-
-        last_status = resp.status_code
-        last_body = resp.text[:300]
-        log.warning("[TTS] uid=%s model=%s status=%s body=%s", uid, tts_model, resp.status_code, last_body)
-        if resp.status_code in (400, 429, 503):
-            continue  # model doesn't support audio or rate limited, try next
-
-    return jsonify({"error": "TTS not available. Audio output is not allowlisted on this backend."}), 502
+    from gemini import generate_tts
+    audio_bytes, err = generate_tts(text, voice)
+    if err:
+        log.warning("[TTS] uid=%s error=%s", uid, err)
+        return jsonify({"error": err}), 502
+    return Response(audio_bytes, mimetype="audio/wav",
+                    headers={"Content-Disposition": "inline; filename=speech.wav"})
 
 
 # ── Eval ────────────────────────────────────────────────────────────────────
@@ -1726,6 +1725,16 @@ def admin_save_models():
         if not m:
             return jsonify({"error": "tts model cannot be empty"}), 400
         cfg["tts"] = m
+    if "tts_models" in data:
+        models = [m.strip() for m in data["tts_models"] if isinstance(m, str) and m.strip()]
+        if not models:
+            return jsonify({"error": "tts_models list cannot be empty"}), 400
+        cfg["tts_models"] = models
+    if "veo_models" in data:
+        models = [m.strip() for m in data["veo_models"] if isinstance(m, str) and m.strip()]
+        if not models:
+            return jsonify({"error": "veo_models list cannot be empty"}), 400
+        cfg["veo_models"] = models
 
     save_model_config(cfg)
     return jsonify(cfg)
@@ -1742,6 +1751,38 @@ def admin_remove_fallback_model(model_name):
     if not updated:
         return jsonify({"error": "Cannot remove the last fallback model"}), 400
     cfg["fallback"] = updated
+    save_model_config(cfg)
+    return jsonify(cfg)
+
+
+@app.route("/api/admin/models/tts_models/<path:model_name>", methods=["DELETE"])
+@login_required
+@admin_required
+def admin_remove_tts_model(model_name):
+    """Remove a model from the tts_models list."""
+    from gemini import get_model_config, save_model_config, _DEFAULT_MODEL_CONFIG
+    cfg = get_model_config()
+    current = cfg.get("tts_models", _DEFAULT_MODEL_CONFIG["tts_models"])
+    updated = [m for m in current if m != model_name]
+    if not updated:
+        return jsonify({"error": "Cannot remove the last TTS model"}), 400
+    cfg["tts_models"] = updated
+    save_model_config(cfg)
+    return jsonify(cfg)
+
+
+@app.route("/api/admin/models/veo_models/<path:model_name>", methods=["DELETE"])
+@login_required
+@admin_required
+def admin_remove_veo_model(model_name):
+    """Remove a model from the veo_models list."""
+    from gemini import get_model_config, save_model_config, _DEFAULT_MODEL_CONFIG
+    cfg = get_model_config()
+    current = cfg.get("veo_models", _DEFAULT_MODEL_CONFIG["veo_models"])
+    updated = [m for m in current if m != model_name]
+    if not updated:
+        return jsonify({"error": "Cannot remove the last Veo model"}), 400
+    cfg["veo_models"] = updated
     save_model_config(cfg)
     return jsonify(cfg)
 
@@ -2010,19 +2051,29 @@ def api_docs():
                  "description": "Run prompt guardrail eval suite (no API calls)."},
                 {"method": "GET", "path": "/api/admin/models",
                  "auth": "admin",
-                 "description": "Get model config: fallback chain, thinking model, TTS model.",
+                 "description": "Get model config: fallback chain, thinking model, cloudcode TTS model, GenAI TTS models list, Veo models list.",
                  "response": {"fallback": "array of model IDs (ordered, tried left to right)",
-                              "thinking": "model ID used for thinking/extended-reasoning requests",
-                              "tts": "model ID used for text-to-speech"}},
+                              "thinking": "model ID for thinking/extended-reasoning requests",
+                              "tts": "cloudcode-pa TTS model (chat audio)",
+                              "tts_models": "array — generativelanguage.googleapis.com TTS models tried in order",
+                              "veo_models": "array — Veo video generation models tried in order"}},
                 {"method": "POST", "path": "/api/admin/models",
                  "auth": "admin",
                  "body": {"fallback": "array (optional) — replace entire fallback chain",
                           "thinking": "string (optional) — set thinking model",
-                          "tts": "string (optional) — set TTS model"},
-                 "description": "Partial-update model config. Only provided fields are changed. Changes take effect within 60s (cache TTL). Persisted to data/models.json."},
+                          "tts": "string (optional) — set cloudcode TTS model",
+                          "tts_models": "array (optional) — replace GenAI TTS model list",
+                          "veo_models": "array (optional) — replace Veo model list"},
+                 "description": "Partial-update model config. Only provided fields are changed. Persisted to data/models.json. Takes effect within 60s."},
                 {"method": "DELETE", "path": "/api/admin/models/fallback/<model>",
                  "auth": "admin",
-                 "description": "Remove a single model from the fallback chain. No-op if model not present."},
+                 "description": "Remove a single model from the fallback chain."},
+                {"method": "DELETE", "path": "/api/admin/models/tts_models/<model>",
+                 "auth": "admin",
+                 "description": "Remove a model from the GenAI TTS models list. Cannot remove last entry."},
+                {"method": "DELETE", "path": "/api/admin/models/veo_models/<model>",
+                 "auth": "admin",
+                 "description": "Remove a model from the Veo video generation models list. Cannot remove last entry."},
             ],
         },
         "supported_file_types": {

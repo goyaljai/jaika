@@ -308,6 +308,40 @@ a:hover { color: var(--accent-hover); }
 .hosting-guide-modal ol { padding-left: 20px; margin: 4px 0; }
 .hosting-guide-modal li { font-size: 13px; color: var(--text2); margin: 4px 0; line-height: 1.6; }
 
+/* ── API Docs revamped UI ────────────────────────────────── */
+#apidocs-overlay .hosting-guide-modal { max-width: 980px; }
+.apidocs-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.apidocs-tab { padding: 5px 13px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); color: var(--text2); background: none; transition: all 0.15s; font-family: inherit; }
+.apidocs-tab:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+.apidocs-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.apidocs-tab.tab-admin { color: var(--red); border-color: rgba(248,81,73,0.35); }
+.apidocs-tab.tab-admin.active { background: var(--red); border-color: var(--red); }
+.apidocs-tab.tab-compat { color: var(--yellow); border-color: rgba(210,153,34,0.35); }
+.apidocs-tab.tab-compat.active { background: var(--yellow); border-color: var(--yellow); color: #000; }
+.ep-card { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+.ep-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--bg); }
+.ep-method { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 4px; letter-spacing: .3px; flex-shrink: 0; font-family: monospace; }
+.ep-method-GET    { background: rgba(63,185,80,.18); color: #3fb950; }
+.ep-method-POST   { background: rgba(88,166,255,.18); color: #58a6ff; }
+.ep-method-DELETE { background: rgba(248,81,73,.18); color: #f85149; }
+.ep-method-PUT    { background: rgba(210,153,34,.18); color: #d29922; }
+.ep-path { font-family: 'SF Mono','Fira Code',monospace; font-size: 13px; color: var(--text); font-weight: 600; }
+.ep-auth { font-size: 10px; padding: 2px 7px; border-radius: 20px; margin-left: 4px; flex-shrink: 0; font-weight: 600; }
+.ep-auth-user  { background: rgba(63,185,80,.12); color: #3fb950; border: 1px solid rgba(63,185,80,.25); }
+.ep-auth-admin { background: rgba(248,81,73,.12); color: #f85149; border: 1px solid rgba(248,81,73,.25); }
+.ep-desc { font-size: 12px; color: var(--text2); margin-left: auto; max-width: 320px; text-align: right; line-height: 1.4; }
+.ep-body { padding: 12px 16px; border-top: 1px solid var(--border); background: var(--surface); }
+.ep-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.ep-cols.single { grid-template-columns: 1fr; }
+.ep-schema-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text2); margin-bottom: 5px; }
+.ep-pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; font-family: 'SF Mono','Fira Code',monospace; color: var(--green); overflow-x: auto; white-space: pre; margin: 0; }
+.ep-curl-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; margin-bottom: 4px; }
+.ep-curl-copy { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); padding: 2px 9px; cursor: pointer; font-size: 11px; font-family: inherit; transition: background 0.15s; }
+.ep-curl-copy:hover { background: var(--border); color: var(--text); }
+.ep-curl-pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 12px; font-family: 'SF Mono','Fira Code',monospace; color: #4ade80; white-space: pre-wrap; word-break: break-all; margin: 0; }
+.apidocs-uid-box { margin-top: 20px; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+.apidocs-uid-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; font-weight: 700; }
+
 .sidebar-footer {
   padding: 12px 16px; border-top: 1px solid var(--border);
   display: flex; align-items: center; gap: 10px;
@@ -574,10 +608,22 @@ resp = client.chat.completions.create(
             <input type="text" id="models-thinking-input" placeholder="gemini-2.5-flash" style="font-family:monospace;font-size:12px">
             <button onclick="saveThinkingModel()">Save</button>
           </div>
-          <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">TTS Model</div>
+          <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">TTS Model (cloudcode)</div>
           <div class="admin-add-row">
             <input type="text" id="models-tts-input" placeholder="gemini-2.5-flash" style="font-family:monospace;font-size:12px">
             <button onclick="saveTtsModel()">Save</button>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">TTS Models (GenAI)</div>
+          <div class="admin-email-list" id="models-tts-list"></div>
+          <div class="admin-add-row">
+            <input type="text" id="models-tts-genai-input" placeholder="gemini-2.5-flash-preview-tts" style="font-family:monospace;font-size:12px">
+            <button onclick="addTtsGenaiModel()">Add</button>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Veo Models</div>
+          <div class="admin-email-list" id="models-veo-list"></div>
+          <div class="admin-add-row">
+            <input type="text" id="models-veo-input" placeholder="veo-3.0-generate-preview" style="font-family:monospace;font-size:12px">
+            <button onclick="addVeoModel()">Add</button>
           </div>
         </div>
         <div id="admin-emails-section" style="display:none">
@@ -870,10 +916,10 @@ async function emailLookup() {
         document.getElementById('login-screen').style.display = 'none';
       }, 600);
     } else if (d.expired) {
-      // Close modal, return to login screen — user re-runs the curl command
-      // Google OAuth preserves the same user_id (sub claim), so data is intact
+      // Token permanently revoked (rare) — close modal and auto-start the login flow
       document.getElementById('email-modal').style.display = 'none';
-      document.getElementById('login-status').innerHTML = '<span style="color:var(--yellow)">Account found! Re-run the command above to sign back in — your data is safe.</span>';
+      await startLoginFlow();
+      document.getElementById('login-status').innerHTML = '<span style="color:var(--yellow)">Account found! Run the command above to sign back in — your data is safe.</span>';
       document.getElementById('login-status').className = 'login-status waiting';
     } else {
       status.innerHTML = '<span style="color:var(--text2)">No account found for this email. Sign in with the terminal command below to create one.</span>';
@@ -905,12 +951,12 @@ function showPublicPage(user) {
 
   var S = window.location.origin;
   var U = user.user_id;
-  var isPro = user.is_pro || user.is_admin;
+  var isPro = true;  // All users have full access — Jaika is free and open-source
 
   // ── Top bar
   var pic = user.picture || '';
   var imgTag = pic ? '<img class="docs-user-pic" src="' + escHtml(pic) + '" alt="">' : '';
-  var tierLabel = user.is_admin ? 'admin' : (user.is_pro ? 'pro' : 'free');
+  var tierLabel = user.is_admin ? 'admin' : 'free';
   document.getElementById('docs-topbar-right').innerHTML =
     imgTag +
     '<span class="docs-user-name">' + escHtml(user.name || user.email || 'User') + '</span>' +
@@ -947,7 +993,7 @@ function showPublicPage(user) {
       '</div>' +
       '<div class="ep-body">' +
         (bodyHtml || '') +
-        (tier === 'PRO' && !isPro ? '<div class="pro-gate-bar"><p>🔒 This feature requires Jaika Pro</p><a href="/pro">Upgrade — ₹199 forever</a></div>' : '') +
+        '' +
       '</div>' +
     '</div>';
   }
@@ -984,7 +1030,7 @@ function showPublicPage(user) {
     responseBlock('data: {"model":"gemini-2.5-flash","type":"start"}\ndata: {"text":"Quantum computing uses..."}\ndata: {"text":" qubits instead of bits"}\ndata: {"type":"done"}'));
 
   html += ep('POST', '/api/prompt (thinking)', 'Extended reasoning mode', 'PRO',
-    '<div class="ep-body-desc">Uses Gemini 2.5 Pro with deep reasoning. Best for math, logic, and complex analysis.</div>' +
+    '<div class="ep-body-desc">Uses Jaika Open Models with deep reasoning. Best for math, logic, and complex analysis.</div>' +
     codeBlock('curl -X POST ' + S + '/api/prompt \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt": "Prove that sqrt(2) is irrational", "thinking": true}\''));
 
   html += ep('POST', '/api/prompt (grounding)', 'Google Search grounding', 'PRO',
@@ -1012,7 +1058,7 @@ function showPublicPage(user) {
     responseBlock('{"text":"The quick brown fox jumps over the lazy dog"}'));
 
   html += ep('POST', '/api/voice-prompt', 'Voice → AI → Text', 'PRO',
-    '<div class="ep-body-desc">One shot: audio in, AI response out. Transcribes your audio and sends it to Gemini. Returns both the transcript and the AI reply.</div>' +
+    '<div class="ep-body-desc">One shot: audio in, AI response out. Transcribes your audio and sends it to Jaika Open Models. Returns both the transcript and the AI reply.</div>' +
     codeBlock('curl -X POST ' + S + '/api/voice-prompt \\\n  -H "' + H + '" \\\n  -F "file=@question.mp3"') +
     responseBlock('{"transcript":"What is the capital of Japan?","text":"Tokyo is the capital...","session_id":"xyz"}'));
 
@@ -1044,7 +1090,7 @@ function showPublicPage(user) {
     responseBlock('{"file_url":"/api/download/' + U + '/generated_abc.html","mime_type":"text/html","size":8192,"remaining":"4"}\n\n# file_url is browser-ready — no auth header needed:\n# curl ' + S + '/api/download/' + U + '/generated_abc.html -o page.html\n# Or open directly in browser'));
 
   html += ep('POST', '/api/generate/image', 'Generate an image', 'FREE',
-    '<div class="ep-body-desc">Uses Gemini native image generation. Falls back to SVG if unavailable.</div>' +
+    '<div class="ep-body-desc">Uses Jaika Open Models for image generation. Falls back to SVG if unavailable.</div>' +
     codeBlock('curl -X POST ' + S + '/api/generate/image \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt":"futuristic city skyline at sunset"}\''));
 
   html += ep('POST', '/api/pdf', 'Generate PDF from Markdown', 'PRO',
@@ -1053,15 +1099,15 @@ function showPublicPage(user) {
     responseBlock('{"path":"/api/download/' + U + '/output.pdf","filename":"output.pdf"}\n\n# Open in browser or curl:\n# curl ' + S + '/api/download/' + U + '/output.pdf -o report.pdf'));
 
   // ── MEMORY
-  html += sec('memory', '🧠', 'Persistent Memory', 'Key facts automatically injected into every chat as system context.');
-  html += ep('GET', '/api/memory', 'List facts', 'FREE',
+  html += sec('memory', '🧠', 'Persistent Memory', 'Key facts automatically injected into every chat as system context. Pro only.');
+  html += ep('GET', '/api/memory', 'List facts', 'PRO',
     codeBlock('curl ' + S + '/api/memory -H "' + H + '"') +
     responseBlock('{"facts":["My name is Jai","I prefer Python 3.12"]}'));
 
-  html += ep('POST', '/api/memory', 'Add a fact', 'FREE',
+  html += ep('POST', '/api/memory', 'Add a fact', 'PRO',
     codeBlock('curl -X POST ' + S + '/api/memory \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"fact":"I prefer concise answers"}\''));
 
-  html += ep('DELETE', '/api/memory/:index', 'Delete a fact', 'FREE',
+  html += ep('DELETE', '/api/memory/:index', 'Delete a fact', 'PRO',
     codeBlock('curl -X DELETE ' + S + '/api/memory/0 \\\n  -H "' + H + '"'));
 
   // ── WEB FETCH
@@ -1071,7 +1117,7 @@ function showPublicPage(user) {
     codeBlock('curl -X POST ' + S + '/api/fetch \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"url":"https://example.com"}\''));
 
   html += ep('POST', '/api/fetch (with AI)', 'Fetch + AI analysis', 'PRO',
-    '<div class="ep-body-desc">Fetches the URL and sends its content to Gemini with your prompt. Returns AI analysis + session_id.</div>' +
+    '<div class="ep-body-desc">Fetches the URL and sends its content to Jaika Open Models with your prompt. Returns AI analysis + session_id.</div>' +
     codeBlock('curl -X POST ' + S + '/api/fetch \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"url":"https://techcrunch.com","prompt":"Summarise the top stories"}\'') +
     responseBlock('{"text":"Top stories: 1. OpenAI announces...","url":"https://techcrunch.com","session_id":"s_xyz"}'));
 
@@ -1114,18 +1160,23 @@ function showPublicPage(user) {
   html += ep('DELETE', '/api/skills/:name', 'Delete a skill', 'PRO',
     codeBlock('curl -X DELETE ' + S + '/api/skills/coding -H "' + H + '"'));
 
+  html += ep('POST', '/api/skills/upload (_persona)', 'Custom persona — replaces system prompt', 'PRO',
+    '<div class="ep-body-desc">Upload a skill named <code>_persona</code> to completely replace the default Jaika system prompt for your account. Every chat will use your persona instead. Other users are unaffected. Delete it to revert to default Jaika behaviour.</div>' +
+    codeBlock('curl -X POST ' + S + '/api/skills/upload \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"name":"_persona","content":"You are Aria, a concise assistant who always responds in bullet points."}\'') +
+    responseBlock('{"ok":true,"name":"_persona"}\n\n# To revert:\n# curl -X DELETE ' + S + '/api/skills/_persona -H "' + H + '"'));
+
   // ── COMPAT ROUTERS
   html += sec('compat', '🔌', 'Drop-in Compatibility', 'Use existing OpenAI, Anthropic, or Gemini SDKs — just change the base URL.');
 
   html += ep('POST', '/v1/chat/completions', 'OpenAI-compatible', 'FREE',
-    '<div class="ep-body-desc">Auth: <code>Authorization: Bearer YOUR_UID</code>. GPT model names are mapped to Gemini. Supports streaming.</div>' +
+    '<div class="ep-body-desc">Auth: <code>Authorization: Bearer YOUR_UID</code>. GPT model names are mapped to Jaika Open Models. Supports streaming.</div>' +
     codeBlock('# curl\ncurl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"Hello"}]}\'\n\n# Python (drop-in replacement)\nimport openai\nclient = openai.OpenAI(base_url="' + S + '/v1", api_key="' + U + '")\nresp = client.chat.completions.create(\n    model="gemini-2.5-pro",\n    messages=[{"role":"user","content":"Hello"}]\n)\nprint(resp.choices[0].message.content)'));
 
   html += ep('POST', '/v1/messages', 'Anthropic-compatible', 'FREE',
-    '<div class="ep-body-desc">Auth: <code>x-api-key: YOUR_UID</code>. Claude model names → Gemini. claude-opus-4 → gemini-2.5-pro.</div>' +
+    '<div class="ep-body-desc">Auth: <code>x-api-key: YOUR_UID</code>. Claude model names → Jaika Open Models. claude-opus-4 → gemini-2.5-pro.</div>' +
     codeBlock('import anthropic\nclient = anthropic.Anthropic(base_url="' + S + '", api_key="' + U + '")\nmsg = client.messages.create(\n    model="claude-opus-4", max_tokens=1024,\n    messages=[{"role":"user","content":"Hello"}]\n)\nprint(msg.content[0].text)'));
 
-  html += ep('POST', '/v1beta/models/:model:generateContent', 'Gemini-native', 'FREE',
+  html += ep('POST', '/v1beta/models/:model:generateContent', 'Jaika-Native', 'FREE',
     '<div class="ep-body-desc">Auth: <code>?key=YOUR_UID</code> query param. Identical to Google Gemini API format.</div>' +
     codeBlock('curl -X POST "' + S + '/v1beta/models/gemini-2.5-flash:generateContent?key=' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"contents":[{"role":"user","parts":[{"text":"Hello"}]}]}\''));
 
@@ -1133,7 +1184,7 @@ function showPublicPage(user) {
   html += sec('user', '👤', 'User & Auth', '');
   html += ep('GET', '/api/me', 'Current user info', 'FREE',
     codeBlock('curl ' + S + '/api/me -H "' + H + '"') +
-    responseBlock('{\n  "user_id": "' + U + '",\n  "email": "you@gmail.com",\n  "is_admin": false,\n  "is_pro": ' + isPro + ',\n  "tier_name": "Jaika (Powered by Gemini)",\n  "storage_used_bytes": 1048576,\n  "storage_cap_bytes": 52428800,\n  "session_limit": 10,\n  "file_gen_limit": 5\n}'));
+    responseBlock('{\n  "user_id": "' + U + '",\n  "email": "you@gmail.com",\n  "is_admin": false,\n  "is_pro": ' + isPro + ',\n  "tier_name": "Jaika Open Models",\n  "storage_used_bytes": 1048576,\n  "storage_cap_bytes": 52428800,\n  "session_limit": 10,\n  "file_gen_limit": 5\n}'));
 
   html += ep('GET', '/auth/status', 'Check auth status', 'FREE',
     codeBlock('curl ' + S + '/auth/status -H "' + H + '"'));
@@ -1290,6 +1341,16 @@ async function loadModels() {
     }).join('');
     document.getElementById('models-thinking-input').value = cfg.thinking || '';
     document.getElementById('models-tts-input').value = cfg.tts || '';
+    var ttsList = document.getElementById('models-tts-list');
+    if (ttsList) ttsList.innerHTML = (cfg.tts_models || []).map(function(m) {
+      return '<div class="admin-email-item"><span style="font-family:monospace;font-size:12px">' + escHtml(m) + '</span>' +
+        '<button onclick="removeTtsGenaiModel(\'' + escHtml(m) + '\')">&times;</button></div>';
+    }).join('');
+    var veoList = document.getElementById('models-veo-list');
+    if (veoList) veoList.innerHTML = (cfg.veo_models || []).map(function(m) {
+      return '<div class="admin-email-item"><span style="font-family:monospace;font-size:12px">' + escHtml(m) + '</span>' +
+        '<button onclick="removeVeoModel(\'' + escHtml(m) + '\')">&times;</button></div>';
+    }).join('');
   } catch(e) {}
 }
 
@@ -1337,6 +1398,50 @@ async function saveTtsModel() {
   loadModels();
 }
 
+async function addTtsGenaiModel() {
+  var input = document.getElementById('models-tts-genai-input');
+  var model = input.value.trim();
+  if (!model) return;
+  var r = await apiFetch('/api/admin/models');
+  var cfg = await r.json();
+  var list = cfg.tts_models || [];
+  if (list.indexOf(model) === -1) list.push(model);
+  await apiFetch('/api/admin/models', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tts_models: list})
+  });
+  input.value = '';
+  loadModels();
+}
+
+async function removeTtsGenaiModel(model) {
+  await apiFetch('/api/admin/models/tts_models/' + encodeURIComponent(model), {method: 'DELETE'});
+  loadModels();
+}
+
+async function addVeoModel() {
+  var input = document.getElementById('models-veo-input');
+  var model = input.value.trim();
+  if (!model) return;
+  var r = await apiFetch('/api/admin/models');
+  var cfg = await r.json();
+  var list = cfg.veo_models || [];
+  if (list.indexOf(model) === -1) list.push(model);
+  await apiFetch('/api/admin/models', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({veo_models: list})
+  });
+  input.value = '';
+  loadModels();
+}
+
+async function removeVeoModel(model) {
+  await apiFetch('/api/admin/models/veo_models/' + encodeURIComponent(model), {method: 'DELETE'});
+  loadModels();
+}
+
 // ── Admin Panels ──────────────────────────────────────────
 function toggleHostingGuide() {
   document.getElementById('hosting-guide-overlay').classList.toggle('open');
@@ -1359,133 +1464,367 @@ function copyCode(btn) {
 function renderApiDocs() {
   var S = window.location.origin;
   var U = getUser() || 'YOUR_USER_ID';
-  var H = '-H "X-User-Id: ' + U + '"';
   var isAdmin = getUserData().is_admin === true;
   var el = document.getElementById('apidocs-content');
+  var H = '-H "X-User-Id: ' + U + '"';
+  var J = '-H "Content-Type: application/json"';
 
-  function block(title, curl) {
-    return '<h3 style="font-size:14px;color:var(--accent);margin:16px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px">' + title + '</h3>' +
-      '<div style="position:relative"><pre style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--green);white-space:pre-wrap;word-break:break-all;margin:4px 0">' + escHtml(curl) + '</pre>' +
-      '<button onclick="copyCode(this)" style="position:absolute;top:6px;right:8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text2);padding:2px 8px;cursor:pointer;font-size:11px">Copy</button></div>';
-  }
+  var cats = [
+    {id:'chat',    label:'Chat'},
+    {id:'voice',   label:'Voice & TTS'},
+    {id:'files',   label:'Files'},
+    {id:'generate',label:'Generate',  cls:'tab-compat'},
+    {id:'sessions',label:'Sessions'},
+    {id:'skills',  label:'Skills'},
+    {id:'memory',  label:'Memory'},
+    {id:'user',    label:'User & Auth'},
+    {id:'compat',  label:'Compat APIs', cls:'tab-compat'},
+  ];
+  if (isAdmin) cats.push({id:'admin', label:'🔐 Admin', cls:'tab-admin'});
 
-  var C = '-H "Content-Type: application/json"';
+  var eps = {
+    chat: [
+      {method:'POST', path:'/api/prompt', auth:'user',
+       desc:'Chat with Gemini. Supports sessions, file attachments, thinking mode, grounding, and JSON output.',
+       req:'{\n  "prompt": "Explain quantum computing",\n  "session_id": null,\n  "stream": false,\n  "file_ids": [],\n  "thinking": false,\n  "grounding": false,\n  "response_format": null\n}',
+       res:'{\n  "text": "Quantum computing uses qubits...",\n  "session_id": "sess_a1b2c3"\n}',
+       curl:'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "Hello!", "stream": false}\''},
+      {method:'POST', path:'/api/prompt (stream)', auth:'user',
+       desc:'Streaming SSE — receive text chunks incrementally.',
+       req:'{\n  "prompt": "Tell me a story",\n  "stream": true\n}',
+       res:'data: {"text": "Once "}\ndata: {"text": "upon a time..."}\ndata: {"type": "done"}',
+       curl:'curl -N -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "Tell a story", "stream": true}\''},
+      {method:'POST', path:'/api/prompt (thinking)', auth:'user',
+       desc:'Extended reasoning mode — forces deep step-by-step analysis.',
+       req:'{\n  "prompt": "Solve this problem step by step...",\n  "thinking": true,\n  "thinking_budget": 8192\n}',
+       res:'{\n  "text": "Step 1: ...",\n  "session_id": "sess_xyz"\n}',
+       curl:'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "...", "thinking": true, "thinking_budget": 8192}\''},
+      {method:'POST', path:'/api/prompt (grounding)', auth:'user',
+       desc:'Google Search grounding — answers backed by live web results.',
+       req:'{\n  "prompt": "What happened in AI news today?",\n  "grounding": true\n}',
+       res:'{\n  "text": "Today in AI news...",\n  "session_id": "sess_abc"\n}',
+       curl:'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "Latest AI news?", "grounding": true}\''},
+      {method:'POST', path:'/api/prompt (with files)', auth:'user',
+       desc:'Attach uploaded files to a prompt using file_ids from /api/upload.',
+       req:'{\n  "prompt": "Summarise this document",\n  "file_ids": ["f_abc123"],\n  "stream": false\n}',
+       res:'{\n  "text": "The document covers...",\n  "session_id": "sess_abc"\n}',
+       curl:'FILE_ID=$(curl -sX POST ' + S + '/api/upload ' + H + ' \\\n  -F "file=@doc.pdf" | python3 -c "import sys,json; print(json.load(sys.stdin)[\'file_id\'])")\n\ncurl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "Summarise", "file_ids": ["\'$FILE_ID\'"]}\''},
+    ],
+    voice: [
+      {method:'POST', path:'/api/stt', auth:'user',
+       desc:'Speech-to-text. Multipart form upload. Supports mp3, wav, webm, ogg, m4a, flac, aac, aiff.',
+       req:'multipart/form-data\n  file=@recording.wav',
+       res:'{\n  "text": "Hello, how are you today?"\n}',
+       curl:'curl -X POST ' + S + '/api/stt \\\n  ' + H + ' \\\n  -F "file=@recording.wav"\n\n# Supported: mp3, wav, webm, ogg, m4a, flac, aac, aiff'},
+      {method:'POST', path:'/api/voice-prompt', auth:'user',
+       desc:'Audio → STT → Gemini → text response in one call.',
+       req:'multipart/form-data\n  file=@question.mp3\n  session_id=optional\n  stream=false',
+       res:'{\n  "transcript": "What is the capital of France?",\n  "text": "The capital of France is Paris.",\n  "session_id": "sess_abc"\n}',
+       curl:'curl -X POST ' + S + '/api/voice-prompt \\\n  ' + H + ' \\\n  -F "file=@question.mp3"\n\n# Streaming:\ncurl -N -X POST ' + S + '/api/voice-prompt \\\n  ' + H + ' \\\n  -F "file=@question.mp3" -F "stream=true"'},
+      {method:'POST', path:'/api/tts', auth:'user',
+       desc:'Text-to-speech via Gemini AUDIO modality. Returns audio/wav binary. Models rotated per config.',
+       req:'{\n  "text": "Hello, I am Jai\'s AI twin!",\n  "voice": "Aoede"\n}',
+       res:'Binary WAV audio file (Content-Type: audio/wav)\n\n# Voices: Aoede, Charon, Fenrir, Kore, Puck',
+       curl:'curl -X POST ' + S + '/api/tts \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"text": "Hello world!", "voice": "Aoede"}\' \\\n  -o speech.wav\n\n# Voices: Aoede, Charon, Fenrir, Kore, Puck'},
+    ],
+    files: [
+      {method:'POST', path:'/api/upload', auth:'user',
+       desc:'Upload a file for AI analysis. Auto-deleted after 1 hour.',
+       req:'multipart/form-data\n  file=@report.pdf',
+       res:'{\n  "file_id": "f_abc123",\n  "name": "report.pdf",\n  "mime_type": "application/pdf",\n  "size": 204800,\n  "converted": false\n}',
+       curl:'curl -X POST ' + S + '/api/upload \\\n  ' + H + ' \\\n  -F "file=@report.pdf"\n\n# Supports: images, pdf, docx→text, xlsx→csv,\n# pptx→text, audio, video, code, txt, md, ipynb'},
+      {method:'GET', path:'/api/files', auth:'user',
+       desc:'List all your uploaded files (metadata only).',
+       req:null,
+       res:'[\n  {\n    "file_id": "f_abc123",\n    "name": "report.pdf",\n    "size": 204800,\n    "uploaded_at": "2025-01-01T12:00:00Z"\n  }\n]',
+       curl:'curl ' + S + '/api/files ' + H},
+      {method:'GET', path:'/api/files/<file_id>', auth:'user',
+       desc:'Get metadata for a specific uploaded file.',
+       req:null,
+       res:'{\n  "file_id": "f_abc123",\n  "name": "report.pdf",\n  "mime_type": "application/pdf",\n  "size": 204800\n}',
+       curl:'curl ' + S + '/api/files/FILE_ID ' + H},
+      {method:'GET', path:'/api/files/<file_id>/download', auth:'user',
+       desc:'Download the raw uploaded file binary.',
+       req:null,
+       res:'Binary file content',
+       curl:'curl ' + S + '/api/files/FILE_ID/download ' + H + ' -o output.pdf'},
+      {method:'DELETE', path:'/api/files/<file_id>', auth:'user',
+       desc:'Delete an uploaded file permanently.',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/files/FILE_ID ' + H},
+    ],
+    generate: [
+      {method:'POST', path:'/api/generate/file', auth:'user',
+       desc:'Generate a file (HTML, SVG, CSV, JSON, Python) from a text prompt using Gemini.',
+       req:'{\n  "prompt": "landing page for a coffee shop",\n  "type": "html"\n}\n\n# Types: html, svg, csv, json, py',
+       res:'{\n  "file_url": "/api/download/USER_ID/output.html",\n  "filename": "output.html",\n  "type": "html",\n  "size": 4096,\n  "remaining": null\n}',
+       curl:'curl -X POST ' + S + '/api/generate/file \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "landing page for coffee shop", "type": "html"}\''},
+      {method:'POST', path:'/api/generate/image', auth:'user',
+       desc:'Generate an image from a text prompt.',
+       req:'{\n  "prompt": "a futuristic city skyline at sunset"\n}',
+       res:'{\n  "file_url": "/api/download/USER_ID/image.png",\n  "filename": "image.png",\n  "type": "image"\n}',
+       curl:'curl -X POST ' + S + '/api/generate/image \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "futuristic city skyline at sunset"}\''},
+      {method:'POST', path:'/api/generate/video', auth:'user',
+       desc:'Generate an MP4 video via Veo. Uses configured veo_models list. Max 8 seconds.',
+       req:'{\n  "prompt": "a time-lapse of flowers blooming in spring"\n}',
+       res:'{\n  "file_url": "/api/download/USER_ID/video.mp4",\n  "filename": "video.mp4",\n  "type": "video"\n}',
+       curl:'curl -X POST ' + S + '/api/generate/video \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"prompt": "time-lapse of flowers blooming"}\''},
+      {method:'POST', path:'/api/pdf', auth:'user',
+       desc:'Convert markdown to a PDF document.',
+       req:'{\n  "markdown": "# Report Title\\n\\nContent here..."\n}',
+       res:'{\n  "path": "/api/download/USER_ID/output.pdf",\n  "filename": "output.pdf"\n}',
+       curl:'curl -X POST ' + S + '/api/pdf \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"markdown": "# My Report\\n\\nContent here..."}\''},
+      {method:'GET', path:'/api/download/<uid>/<filename>', auth:'user',
+       desc:'Download a generated output file. No auth header needed — works directly in browser.',
+       req:null,
+       res:'Binary file (HTML/SVG/CSV/JSON/PDF/MP4)',
+       curl:'curl ' + S + '/api/download/' + U + '/output.html -o output.html\n\n# Or just open in browser:\n# ' + S + '/api/download/' + U + '/output.html'},
+    ],
+    sessions: [
+      {method:'GET', path:'/api/sessions', auth:'user',
+       desc:'List all your sessions sorted newest first.',
+       req:null,
+       res:'[\n  {\n    "session_id": "sess_abc",\n    "title": "My Project",\n    "message_count": 12,\n    "created_at": "2025-01-01T12:00:00Z"\n  }\n]',
+       curl:'curl ' + S + '/api/sessions ' + H},
+      {method:'POST', path:'/api/sessions', auth:'user',
+       desc:'Create a new session. Limits: 10 free / 25 pro / unlimited admin.',
+       req:'{\n  "title": "My Project"\n}',
+       res:'{\n  "session_id": "sess_new123",\n  "title": "My Project"\n}',
+       curl:'curl -X POST ' + S + '/api/sessions \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"title": "My Project"}\''},
+      {method:'GET', path:'/api/sessions/<id>', auth:'user',
+       desc:'Get a session with its full message history.',
+       req:null,
+       res:'{\n  "session_id": "sess_abc",\n  "title": "My Project",\n  "messages": [\n    {"role": "user", "text": "Hello"},\n    {"role": "model", "text": "Hi there!"}\n  ]\n}',
+       curl:'curl ' + S + '/api/sessions/SESSION_ID ' + H},
+      {method:'PUT', path:'/api/sessions/<id>', auth:'user',
+       desc:'Rename a session.',
+       req:'{\n  "title": "New Name"\n}',
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X PUT ' + S + '/api/sessions/SESSION_ID \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"title": "New Name"}\''},
+      {method:'DELETE', path:'/api/sessions/<id>', auth:'user',
+       desc:'Delete a session and all its messages.',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/sessions/SESSION_ID ' + H},
+      {method:'DELETE', path:'/api/sessions/<id>/messages', auth:'user',
+       desc:'Clear all messages in a session (keeps the session itself).',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/sessions/SESSION_ID/messages ' + H},
+    ],
+    skills: [
+      {method:'GET', path:'/api/skills', auth:'user',
+       desc:'List skill names. Skills are .md files that build the system prompt.',
+       req:null,
+       res:'["coding", "concise", "_persona"]',
+       curl:'curl ' + S + '/api/skills ' + H},
+      {method:'GET', path:'/api/skills/<name>', auth:'user',
+       desc:'Get the content of a specific skill.',
+       req:null,
+       res:'{\n  "name": "coding",\n  "content": "You are an expert programmer..."\n}',
+       curl:'curl ' + S + '/api/skills/coding ' + H},
+      {method:'POST', path:'/api/skills/upload', auth:'user',
+       desc:'Create or update a skill. _persona skill replaces the entire system prompt for all your chats.',
+       req:'{\n  "name": "coding",\n  "content": "You are an expert programmer.\\nAlways use best practices."\n}',
+       res:'{\n  "ok": true,\n  "name": "coding"\n}',
+       curl:'curl -X POST ' + S + '/api/skills/upload \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"name": "coding", "content": "You are an expert programmer."}\'\n\n# Or upload a .md file:\ncurl -X POST ' + S + '/api/skills/upload \\\n  ' + H + ' \\\n  -F "file=@coding.md"'},
+      {method:'DELETE', path:'/api/skills/<name>', auth:'user',
+       desc:'Delete a skill permanently.',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/skills/coding ' + H},
+    ],
+    memory: [
+      {method:'GET', path:'/api/memory', auth:'user',
+       desc:'List all persistent memory facts. Facts are injected as system context into every chat.',
+       req:null,
+       res:'{\n  "facts": [\n    "I prefer concise answers",\n    "I drive a Tesla Model 3"\n  ]\n}',
+       curl:'curl ' + S + '/api/memory ' + H},
+      {method:'POST', path:'/api/memory', auth:'user',
+       desc:'Add a memory fact. Persists across all sessions.',
+       req:'{\n  "fact": "I prefer concise answers"\n}',
+       res:'{\n  "ok": true,\n  "count": 3\n}',
+       curl:'curl -X POST ' + S + '/api/memory \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"fact": "I prefer concise answers"}\''},
+      {method:'DELETE', path:'/api/memory/<index>', auth:'user',
+       desc:'Delete a memory fact by 0-based index.',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/memory/0 ' + H},
+      {method:'DELETE', path:'/api/memory', auth:'user',
+       desc:'Clear all memory facts for this user.',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/memory ' + H},
+    ],
+    user: [
+      {method:'GET', path:'/api/me', auth:'user',
+       desc:'Get your current user profile.',
+       req:null,
+       res:'{\n  "user_id": "1234567890",\n  "email": "you@gmail.com",\n  "name": "Your Name",\n  "is_admin": false,\n  "is_pro": true,\n  "tier_id": "pro",\n  "storage_used_bytes": 1048576,\n  "storage_cap_bytes": 524288000\n}',
+       curl:'curl ' + S + '/api/me ' + H},
+      {method:'GET', path:'/auth/status', auth:'user',
+       desc:'Check auth status and whether the session is still valid.',
+       req:null,
+       res:'{\n  "authenticated": true,\n  "user_id": "1234567890",\n  "email": "you@gmail.com",\n  "is_admin": false\n}',
+       curl:'curl ' + S + '/auth/status ' + H},
+      {method:'GET', path:'/auth/logout', auth:'user',
+       desc:'Revoke OAuth token and clear server-side session.',
+       req:null,
+       res:'{"ok": true}',
+       curl:'curl ' + S + '/auth/logout ' + H},
+      {method:'POST', path:'/api/fetch', auth:'user',
+       desc:'Fetch a URL and optionally analyse it with Gemini.',
+       req:'{\n  "url": "https://example.com",\n  "prompt": "Summarise this page"\n}\n\n# Without prompt: returns raw page text',
+       res:'{\n  "text": "This page is about...",\n  "session_id": "sess_abc"\n}',
+       curl:'curl -X POST ' + S + '/api/fetch \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"url": "https://example.com", "prompt": "Summarise this"}\''},
+    ],
+    compat: [
+      {method:'GET', path:'/v1/models', auth:'user',
+       desc:'OpenAI-compatible models list. Use your user_id as the API key.',
+       req:null,
+       res:'{\n  "object": "list",\n  "data": [\n    {"id": "gemini-3-flash-preview", "object": "model"},\n    {"id": "gpt-4o", "object": "model"}\n  ]\n}',
+       curl:'curl ' + S + '/v1/models \\\n  -H "Authorization: Bearer ' + U + '"'},
+      {method:'POST', path:'/v1/chat/completions', auth:'user',
+       desc:'OpenAI Chat Completions. GPT model names auto-mapped → Gemini. Supports stream:true.',
+       req:'{\n  "model": "gemini-3-flash-preview",\n  "messages": [\n    {"role": "user", "content": "Hello"}\n  ],\n  "stream": false\n}',
+       res:'{\n  "choices": [{\n    "message": {"role": "assistant", "content": "Hi there!"},\n    "finish_reason": "stop"\n  }]\n}',
+       curl:'curl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + J + ' \\\n  -d \'{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}\'\n\n# Model map: gpt-4o→gemini-3-flash-preview, gpt-4o-mini→gemini-3.1-flash-lite-preview'},
+      {method:'POST', path:'/v1/messages', auth:'user',
+       desc:'Anthropic Messages API. Use x-api-key header. Claude model names auto-mapped → Gemini.',
+       req:'{\n  "model": "claude-opus-4",\n  "messages": [{"role": "user", "content": "Hello"}],\n  "max_tokens": 1024\n}',
+       res:'{\n  "content": [{"type": "text", "text": "Hi there!"}],\n  "model": "gemini-3-flash-preview"\n}',
+       curl:'curl -X POST ' + S + '/v1/messages \\\n  -H "x-api-key: ' + U + '" ' + J + ' \\\n  -d \'{"model": "claude-opus-4", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 1024}\'\n\n# Model map: claude-opus-4→gemini-3-flash-preview, claude-sonnet-4→gemini-3.1-flash-lite-preview'},
+      {method:'POST', path:'/v1beta/models/<model>:generateContent', auth:'user',
+       desc:'Gemini native format. Use ?key= or Bearer token.',
+       req:'{\n  "contents": [{\n    "role": "user",\n    "parts": [{"text": "Hello"}]\n  }]\n}',
+       res:'{\n  "candidates": [{\n    "content": {"parts": [{"text": "Hi there!"}]}\n  }]\n}',
+       curl:'curl -X POST "' + S + '/v1beta/models/gemini-3-flash-preview:generateContent?key=' + U + '" \\\n  ' + J + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}\''},
+    ],
+    admin: [
+      {method:'GET', path:'/api/admin/vitals', auth:'admin',
+       desc:'Server vitals: CPU, memory, disk, uptime, battery, per-user stats.',
+       req:null,
+       res:'{\n  "memory": {"used_mb": 512, "total_mb": 4096},\n  "disk": {"used_gb": 10, "total_gb": 64},\n  "uptime": "5d 3h 12m",\n  "users": [{...}]\n}',
+       curl:'curl ' + S + '/api/admin/vitals ' + H},
+      {method:'GET', path:'/api/admin/users', auth:'admin',
+       desc:'List all users with roles, token status, session count, and disk usage.',
+       req:null,
+       res:'[\n  {\n    "user_id": "123",\n    "email": "user@gmail.com",\n    "is_admin": false,\n    "is_pro": true,\n    "session_count": 5,\n    "storage_bytes": 1048576\n  }\n]',
+       curl:'curl ' + S + '/api/admin/users ' + H},
+      {method:'POST', path:'/api/admin/users/<uid>/promote', auth:'admin',
+       desc:'Grant pro or admin role to a user.',
+       req:'{\n  "role": "pro"\n}\n\n# role: "pro" or "admin"',
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X POST ' + S + '/api/admin/users/USER_ID/promote \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"role": "pro"}\''},
+      {method:'POST', path:'/api/admin/users/<uid>/demote', auth:'admin',
+       desc:'Remove pro or admin role from a user.',
+       req:'{\n  "role": "pro"\n}',
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X POST ' + S + '/api/admin/users/USER_ID/demote \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"role": "pro"}\''},
+      {method:'DELETE', path:'/api/admin/users/<uid>', auth:'admin',
+       desc:'Permanently delete a user and all their data.',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/admin/users/USER_ID ' + H},
+      {method:'DELETE', path:'/api/admin/users/<uid>/sessions', auth:'admin',
+       desc:'Clear all sessions for a specific user.',
+       req:null,
+       res:'{\n  "ok": true\n}',
+       curl:'curl -X DELETE ' + S + '/api/admin/users/USER_ID/sessions ' + H},
+      {method:'GET', path:'/api/admin/models', auth:'admin',
+       desc:'Get full model config: fallback chain, thinking model, TTS models, Veo models.',
+       req:null,
+       res:'{\n  "fallback": ["gemini-3-flash-preview", "gemini-2.5-flash"],\n  "thinking": "gemini-3-flash-preview",\n  "tts": "gemini-2.5-flash",\n  "tts_models": ["gemini-2.5-flash-preview-tts"],\n  "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]\n}',
+       curl:'curl ' + S + '/api/admin/models ' + H},
+      {method:'POST', path:'/api/admin/models', auth:'admin',
+       desc:'Partial-update model config. Only provided fields are changed. Persisted to models.json. Takes effect within 60s.',
+       req:'{\n  "fallback": ["gemini-3-flash-preview", "gemini-2.5-flash"],\n  "thinking": "gemini-3-flash-preview",\n  "tts_models": ["gemini-2.5-flash-preview-tts"],\n  "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]\n}',
+       res:'{\n  "fallback": [...],\n  "tts_models": [...],\n  "veo_models": [...]\n}',
+       curl:'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"tts_models": ["gemini-2.5-flash-preview-tts"], "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]}\''},
+      {method:'DELETE', path:'/api/admin/models/fallback/<model>', auth:'admin',
+       desc:'Remove a model from the fallback chain.',
+       req:null,
+       res:'{\n  "fallback": ["gemini-2.5-flash"]\n}',
+       curl:'curl -X DELETE ' + S + '/api/admin/models/fallback/gemini-2.5-pro ' + H},
+      {method:'DELETE', path:'/api/admin/models/tts_models/<model>', auth:'admin',
+       desc:'Remove a model from the GenAI TTS models list. Cannot remove last entry.',
+       req:null,
+       res:'{\n  "tts_models": ["gemini-2.5-flash-preview-tts"]\n}',
+       curl:'curl -X DELETE ' + S + '/api/admin/models/tts_models/gemini-2.5-flash-preview-tts ' + H},
+      {method:'DELETE', path:'/api/admin/models/veo_models/<model>', auth:'admin',
+       desc:'Remove a model from the Veo video generation list. Cannot remove last entry.',
+       req:null,
+       res:'{\n  "veo_models": ["veo-2.0-generate-001"]\n}',
+       curl:'curl -X DELETE ' + S + '/api/admin/models/veo_models/veo-3.0-generate-preview ' + H},
+      {method:'GET', path:'/api/admin/contacts', auth:'admin',
+       desc:'All user contacts. Add ?format=download for JSON file attachment.',
+       req:null,
+       res:'[\n  {"email": "user@gmail.com", "name": "User Name", "joined": "2025-01-01"}\n]',
+       curl:'curl ' + S + '/api/admin/contacts?format=download ' + H + ' -o contacts.json'},
+      {method:'GET', path:'/api/eval/guardrails', auth:'admin',
+       desc:'Run the prompt guardrail eval suite (no API calls, local only).',
+       req:null,
+       res:'{\n  "passed": 42,\n  "failed": 0,\n  "results": [{...}]\n}',
+       curl:'curl ' + S + '/api/eval/guardrails ' + H},
+    ],
+  };
 
-  function sec(title, color) {
-    return '<h3 style="font-size:13px;font-weight:700;color:' + (color||'var(--accent)') + ';margin:22px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px;text-transform:uppercase;letter-spacing:.5px">' + title + '</h3>';
-  }
+  function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // ── Chat ──
-  var html = sec('Chat & Prompt', 'var(--accent)') +
-    block('Send a prompt', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Hello!", "stream": false}\'') +
-    block('Streaming (SSE)', 'curl -N -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Explain AI", "stream": true}\'') +
-    block('Thinking mode (extended reasoning)', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Solve this step by step...", "thinking": true, "thinking_budget": 8192}\'') +
-    block('Web grounding (Google Search)', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "What happened in AI news today?", "grounding": true}\'') +
-    block('Structured JSON output', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "List 3 fruits as JSON array", "response_format": "json"}\'') +
-    block('With file attachments', 'FILE_ID=$(curl -sX POST ' + S + '/api/upload ' + H + ' \\\n  -F "file=@doc.pdf" | python3 -c "import sys,json; print(json.load(sys.stdin)[\'file_id\'])")\n\ncurl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Summarise this document", "file_ids": ["\'$FILE_ID\'"]}\'') +
-    block('Continue a session', 'curl -X POST ' + S + '/api/prompt \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "Follow-up question", "session_id": "SESSION_ID"}\'');
-
-  // ── Voice & Audio ──
-  html += sec('Voice & Audio', 'var(--accent)') +
-    block('Speech-to-text (STT)', 'curl -X POST ' + S + '/api/stt \\\n  ' + H + ' \\\n  -F "file=@recording.wav"\n\n# Supports: mp3, wav, webm, ogg, m4a, flac, aac, aiff') +
-    block('Voice prompt (audio → AI → text)', 'curl -X POST ' + S + '/api/voice-prompt \\\n  ' + H + ' \\\n  -F "file=@question.mp3"\n\n# Returns: {"transcript": "...", "text": "...", "session_id": "..."}') +
-    block('Voice prompt (streaming)', 'curl -N -X POST ' + S + '/api/voice-prompt \\\n  ' + H + ' \\\n  -F "file=@question.mp3" -F "stream=true"\n\n# First SSE event: {"type":"transcript","text":"..."}\n# Then text chunks, finally {"type":"done"}') +
-    block('Text-to-speech (TTS)', 'curl -X POST ' + S + '/api/tts \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"text": "Hello world!", "voice": "Aoede"}\' \\\n  -o speech.wav\n\n# Voices: Aoede, Charon, Fenrir, Kore, Puck');
-
-  // ── Web Fetch ──
-  html += sec('Web Fetch', 'var(--accent)') +
-    block('Fetch & analyse a URL', 'curl -X POST ' + S + '/api/fetch \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"url": "https://example.com", "prompt": "Summarise this page"}\'') +
-    block('Fetch raw page content', 'curl -X POST ' + S + '/api/fetch \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"url": "https://example.com"}\'\n\n# Without prompt: returns raw HTML/text (no AI call)');
-
-  // ── Memory ──
-  html += sec('Persistent Memory', 'var(--accent)') +
-    block('List memory facts', 'curl ' + S + '/api/memory ' + H) +
-    block('Add a memory fact', 'curl -X POST ' + S + '/api/memory \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"fact": "I prefer concise answers"}\'\n\n# Facts are injected into every chat as system context') +
-    block('Delete a fact (0-based index)', 'curl -X DELETE ' + S + '/api/memory/0 ' + H) +
-    block('Clear all memory', 'curl -X DELETE ' + S + '/api/memory ' + H);
-
-  // ── Files ──
-  html += sec('Files & Uploads', 'var(--accent)') +
-    block('Upload a file', 'curl -X POST ' + S + '/api/upload \\\n  ' + H + ' \\\n  -F "file=@report.docx"\n\n# Supports: images, pdf, docx→text, xlsx→csv, pptx→text,\n# audio, video, code, txt, md, ipynb, and more\n# Auto-deleted after 1 hour') +
-    block('List uploaded files', 'curl ' + S + '/api/files ' + H) +
-    block('Get file metadata', 'curl ' + S + '/api/files/FILE_ID ' + H) +
-    block('Download uploaded file', 'curl ' + S + '/api/files/FILE_ID/download ' + H + ' -o output.pdf') +
-    block('Delete uploaded file', 'curl -X DELETE ' + S + '/api/files/FILE_ID ' + H) +
-    block('Download generated output', '# file_url is returned in generate responses\n# No auth header needed — works directly in browser\ncurl ' + S + '/api/download/' + U + '/FILENAME -o file.html\n\n# Or just open in browser:\n# ' + S + '/api/download/' + U + '/FILENAME');
-
-  // ── Generate ──
-  html += sec('Generate Files & Media', '#d4a017') +
-    block('Generate file (HTML/SVG/CSV/JSON/Python)', 'curl -X POST ' + S + '/api/generate/file \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "landing page for coffee shop", "type": "html"}\'\n\n# Types: html, svg, csv, json, py, image, video\n# Limits: 5/day free, unlimited pro/admin') +
-    block('Generate image', 'curl -X POST ' + S + '/api/generate/image \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "a futuristic city skyline at sunset"}\'\n\n# Returns SVG if native image gen not available') +
-    block('Generate animated video (HTML5)', 'curl -X POST ' + S + '/api/generate/video \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"prompt": "solar system orbiting animation"}\'') +
-    block('Generate PDF (Pro only)', 'curl -X POST ' + S + '/api/pdf \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"markdown": "# Report\\n\\nContent here..."}\'');
-
-  // ── Sessions ──
-  html += sec('Sessions', 'var(--accent)') +
-    block('List sessions', 'curl ' + S + '/api/sessions ' + H) +
-    block('Create session', 'curl -X POST ' + S + '/api/sessions \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"title": "My Project"}\'') +
-    block('Get session + history', 'curl ' + S + '/api/sessions/SESSION_ID ' + H) +
-    block('Rename session', 'curl -X PUT ' + S + '/api/sessions/SESSION_ID \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"title": "New Name"}\'') +
-    block('Delete session', 'curl -X DELETE ' + S + '/api/sessions/SESSION_ID ' + H) +
-    block('Clear session messages', 'curl -X DELETE ' + S + '/api/sessions/SESSION_ID/messages ' + H);
-
-  // ── Skills ──
-  html += sec('Skills (System Prompt Modules)', 'var(--accent)') +
-    block('List skills', 'curl ' + S + '/api/skills ' + H) +
-    block('Get skill content', 'curl ' + S + '/api/skills/coding ' + H) +
-    block('Upload skill (JSON)', 'curl -X POST ' + S + '/api/skills/upload \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"name": "coding", "content": "You are an expert programmer.\\nAlways use best practices."}\'') +
-    block('Upload skill (file)', 'curl -X POST ' + S + '/api/skills/upload \\\n  ' + H + ' \\\n  -F "file=@coding.md"') +
-    block('Delete skill', 'curl -X DELETE ' + S + '/api/skills/coding ' + H);
-
-  // ── User ──
-  html += sec('User & Auth', 'var(--accent)') +
-    block('Current user info', 'curl ' + S + '/api/me ' + H + '\n\n# Returns: user_id, email, name, is_admin, is_pro, tier_id,\n# storage_used_bytes, storage_cap_bytes, session_limit') +
-    block('Auth status', 'curl ' + S + '/auth/status ' + H) +
-    block('Logout', 'curl ' + S + '/auth/logout ' + H);
-
-  // ── Compat APIs ──
-  html += sec('OpenAI-Compatible API', 'var(--yellow)') +
-    block('List models', 'curl ' + S + '/v1/models \\\n  -H "Authorization: Bearer ' + U + '"') +
-    block('Chat completion', 'curl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gemini-3-flash-preview", "messages": [{"role": "user", "content": "Hello"}]}\'') +
-    block('Streaming chat', 'curl -N -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + C + ' \\\n  -d \'{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hi"}], "stream": true}\'\n\n# GPT model names are mapped → Gemini: gpt-4o→gemini-3-flash-preview, gpt-4o-mini→gemini-3.1-flash-lite-preview') +
-    block('Python OpenAI client', 'import openai\n\nclient = openai.OpenAI(\n    base_url="' + S + '/v1",\n    api_key="' + U + '"\n)\n\n# Standard chat\nresp = client.chat.completions.create(\n    model="gemini-3-flash-preview",\n    messages=[{"role": "user", "content": "Explain AI"}]\n)\nprint(resp.choices[0].message.content)\n\n# Streaming\nstream = client.chat.completions.create(\n    model="gemini-3.1-flash-lite-preview",\n    messages=[{"role": "user", "content": "Tell me a joke"}],\n    stream=True\n)\nfor chunk in stream:\n    if chunk.choices[0].delta.content:\n        print(chunk.choices[0].delta.content, end="", flush=True)');
-
-  html += sec('Anthropic-Compatible API', 'var(--yellow)') +
-    block('Messages', 'curl -X POST ' + S + '/v1/messages \\\n  -H "x-api-key: ' + U + '" ' + C + ' \\\n  -d \'{"model": "claude-opus-4", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 1024}\'\n\n# Claude model names are mapped → Gemini: claude-opus-4→gemini-3-flash-preview, claude-sonnet-4→gemini-3.1-flash-lite-preview') +
-    block('Python Anthropic client', 'import anthropic\n\nclient = anthropic.Anthropic(\n    base_url="' + S + '",\n    api_key="' + U + '"\n)\n\nmsg = client.messages.create(\n    model="claude-opus-4",\n    max_tokens=1024,\n    messages=[{"role": "user", "content": "Hello, Claude"}]\n)\nprint(msg.content[0].text)');
-
-  html += sec('Gemini-Native API', 'var(--yellow)') +
-    block('List models', 'curl "' + S + '/v1beta/models?key=' + U + '"') +
-    block('Generate content', 'curl -X POST "' + S + '/v1beta/models/gemini-3-flash-preview:generateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}\'') +
-    block('Streaming generate', 'curl -N -X POST "' + S + '/v1beta/models/gemini-3-flash-preview:streamGenerateContent?key=' + U + '" \\\n  ' + C + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Stream this"}]}]}\'');
-
-  // ── Admin (only shown to admins) ──
-  if (isAdmin) {
-    html += sec('Admin Only', 'var(--red)') +
-      block('Server vitals', 'curl ' + S + '/api/admin/vitals ' + H) +
-      block('List all users', 'curl ' + S + '/api/admin/users ' + H) +
-      block('Promote user (pro/admin)', 'curl -X POST ' + S + '/api/admin/users/USER_ID/promote \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"role": "pro"}\'') +
-      block('Demote user', 'curl -X POST ' + S + '/api/admin/users/USER_ID/demote \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"role": "pro"}\'') +
-      block('Delete user', 'curl -X DELETE ' + S + '/api/admin/users/USER_ID ' + H) +
-      block('Admin emails', 'curl ' + S + '/api/admin/emails ' + H + '\ncurl -X POST ' + S + '/api/admin/emails ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'\ncurl -X DELETE ' + S + '/api/admin/emails ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'') +
-      block('Pro users', 'curl ' + S + '/api/admin/pro ' + H + '\ncurl -X POST ' + S + '/api/admin/pro ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'\ncurl -X DELETE ' + S + '/api/admin/pro ' + H + ' ' + C + ' -d \'{"email": "x@x.com"}\'') +
-      block('Download contacts', 'curl ' + S + '/api/admin/contacts?format=download ' + H + ' -o contacts.json') +
-      block('Clear user sessions', 'curl -X DELETE ' + S + '/api/admin/users/USER_ID/sessions ' + H) +
-      block('Run guardrail evals', 'curl ' + S + '/api/eval/guardrails ' + H) +
-      block('Get model config', 'curl ' + S + '/api/admin/models ' + H + '\n\n# Returns: {"fallback":[...], "thinking":"...", "tts":"..."}') +
-      block('Add model to fallback chain', 'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"fallback": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]}\'\n\n# Replaces entire fallback list') +
-      block('Remove model from fallback chain', 'curl -X DELETE ' + S + '/api/admin/models/fallback/gemini-2.5-pro ' + H + '\n\n# Replace gemini-2.5-pro with any model name to remove') +
-      block('Set thinking model', 'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"thinking": "gemini-2.5-pro"}\'') +
-      block('Set TTS model', 'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + C + ' \\\n  -d \'{"tts": "gemini-2.5-flash"}\'');
-  }
-
-  html += '<div style="margin-top:24px;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px">' +
-    '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Your User ID</div>' +
-    '<div style="position:relative"><pre style="background:transparent;border:none;padding:0;font-size:13px;color:var(--accent)">' + escHtml(U) + '</pre>' +
-    '<button onclick="copyCode(this)" style="position:absolute;top:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text2);padding:2px 8px;cursor:pointer;font-size:11px">Copy</button></div>' +
+  function epCard(ep) {
+    var authCls = ep.auth === 'admin' ? 'ep-auth-admin' : 'ep-auth-user';
+    var schemaHtml = '';
+    if (ep.req || ep.res) {
+      var cols = (ep.req && ep.res) ? 'ep-cols' : 'ep-cols single';
+      schemaHtml += '<div class="' + cols + '">';
+      if (ep.req) schemaHtml += '<div><div class="ep-schema-label">Request Body</div><pre class="ep-pre">' + escH(ep.req) + '</pre></div>';
+      if (ep.res) schemaHtml += '<div><div class="ep-schema-label">Sample Response</div><pre class="ep-pre">' + escH(ep.res) + '</pre></div>';
+      schemaHtml += '</div>';
+    }
+    var curlHtml = '';
+    if (ep.curl) {
+      curlHtml = '<div class="ep-curl-row"><span class="ep-schema-label">cURL</span><button class="ep-curl-copy" onclick="cpCurl(this)">Copy</button></div>' +
+        '<pre class="ep-curl-pre">' + escH(ep.curl) + '</pre>';
+    }
+    return '<div class="ep-card">' +
+      '<div class="ep-head">' +
+        '<span class="ep-method ep-method-' + ep.method.split(' ')[0] + '">' + ep.method.split(' ')[0] + '</span>' +
+        '<span class="ep-path">' + escH(ep.path) + '</span>' +
+        '<span class="ep-auth ' + authCls + '">' + ep.auth + '</span>' +
+        '<span class="ep-desc">' + escH(ep.desc) + '</span>' +
+      '</div>' +
+      ((schemaHtml || curlHtml) ? '<div class="ep-body">' + schemaHtml + curlHtml + '</div>' : '') +
     '</div>';
+  }
 
-  el.innerHTML = html;
+  function renderTab(tabId) {
+    var tabsHtml = cats.map(function(c) {
+      var cls = 'apidocs-tab' + (c.cls ? ' ' + c.cls : '') + (c.id === tabId ? ' active' : '');
+      return '<button class="' + cls + '" onclick="window._adTab(\'' + c.id + '\')">' + c.label + '</button>';
+    }).join('');
+    var cardsHtml = (eps[tabId] || []).map(epCard).join('');
+    var uidHtml = '<div class="apidocs-uid-box">' +
+      '<div class="apidocs-uid-label">Your User ID (use as X-User-Id header)</div>' +
+      '<div style="position:relative"><pre style="background:transparent;border:none;padding:0;font-size:13px;color:var(--accent);font-family:monospace">' + escH(U) + '</pre>' +
+      '<button onclick="cpCurl(this)" style="position:absolute;top:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text2);padding:2px 8px;cursor:pointer;font-size:11px">Copy</button></div>' +
+      '</div>';
+    document.getElementById('apidocs-tabs').innerHTML = tabsHtml;
+    document.getElementById('apidocs-cards').innerHTML = cardsHtml + uidHtml;
+  }
+
+  window._adTab = renderTab;
+  window.cpCurl = function(btn) {
+    var el = btn.parentElement.nextElementSibling || btn.parentElement.querySelector('pre');
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent).then(function() {
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+    });
+  };
+
+  el.innerHTML = '<div id="apidocs-tabs" class="apidocs-tabs"></div><div id="apidocs-cards"></div>';
+  renderTab('chat');
 }
 
 function toggleAdminEmails() {

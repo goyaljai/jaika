@@ -17,6 +17,28 @@ log = logging.getLogger(__name__)
 
 ENDPOINT = "https://cloudcode-pa.googleapis.com"
 SERP_SEARCH_ENDPOINT = "https://serpapi.com/search.json"
+GENAI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
+
+# Gemini API keys for features not supported by cloudcode-pa (TTS, Veo video).
+# Keys are rotated round-robin on 429 / quota exhaustion.
+_GEMINI_API_KEYS = [
+    "YOUR_GEMINI_API_KEY_3",  # billing-enabled, Veo + TTS
+    "AIzaSyD9j2xSxdvKoOW0TwdrSioge--_NPd3uLQ",  # TTS only fallback
+    "YOUR_GEMINI_API_KEY_2",  # TTS only fallback
+]
+_key_index = 0
+_key_lock = threading.Lock()
+
+
+def _get_api_key():
+    return _GEMINI_API_KEYS[_key_index % len(_GEMINI_API_KEYS)]
+
+
+def _rotate_api_key():
+    global _key_index
+    with _key_lock:
+        _key_index += 1
+    log.warning("[GENAI KEY] Rotated to key index %d", _key_index % len(_GEMINI_API_KEYS))
 
 
 def serp_search(query: str) -> dict:
@@ -72,6 +94,9 @@ _DEFAULT_MODEL_CONFIG = {
     ],
     "thinking": "gemini-3-flash-preview",
     "tts": "gemini-2.5-flash",
+    # GenAI API (generativelanguage.googleapis.com) model lists — tried in order
+    "tts_models": ["gemini-2.5-flash-preview-tts"],
+    "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"],
 }
 
 # Keep module-level names for backward-compat (TTS handler in app.py imports MODEL_TTS)
@@ -169,6 +194,7 @@ def discover_project_and_tier(user_id) -> dict:
     }
 
     # Step 1 — probe loadCodeAssist with no project to discover project_id
+    # Retry once on 401: force-refresh the token and try again
     probe = {"metadata": _get_client_metadata()}
     resp = http_requests.post(
         f"{ENDPOINT}/v1internal:loadCodeAssist",
@@ -176,6 +202,23 @@ def discover_project_and_tier(user_id) -> dict:
         data=json.dumps(probe),
         timeout=30,
     )
+    if resp.status_code == 401:
+        log.warning("[PROJECT] uid=%s 401 from loadCodeAssist — force-refreshing token", user_id)
+        from auth import load_token, save_token
+        _tok = load_token(user_id)
+        if _tok:
+            _tok["saved_at"] = 0
+            save_token(user_id, _tok)
+        token = get_access_token(user_id)
+        if not token:
+            raise PermissionError("Token refresh failed after loadCodeAssist 401")
+        headers["Authorization"] = f"Bearer {token}"
+        resp = http_requests.post(
+            f"{ENDPOINT}/v1internal:loadCodeAssist",
+            headers=headers,
+            data=json.dumps(probe),
+            timeout=30,
+        )
     resp.raise_for_status()
     load_data = resp.json()
 
@@ -748,6 +791,18 @@ def generate_image(user_id, prompt):
                     return base64.b64decode(image_b64), image_mime, caption
                 break  # no image in response, try next model
 
+            if resp.status_code == 401:
+                log.warning("[IMAGE] uid=%s 401 on attempt %d — refreshing token", user_id, attempt + 1)
+                try:
+                    headers = _refresh_headers(user_id)
+                    new_pid = _get_project_id(user_id)
+                    if new_pid:
+                        project_id = new_pid
+                        body["project"] = project_id
+                    continue  # retry with new token
+                except PermissionError as e:
+                    return None, None, f"Authentication failed: {e}"
+
             if resp.status_code in (429, 503):
                 kind, value = _classify_error(resp)
                 if kind == "terminal":
@@ -788,6 +843,168 @@ def gemini_generate_file(user_id, prompt, file_type="html"):
         return None, "Generated file exceeds 5MB limit"
 
     return content, None
+
+
+def _pcm_to_wav(pcm_bytes, sample_rate=24000, channels=1, bit_depth=16):
+    """Wrap raw PCM bytes in a WAV container header."""
+    import struct
+    byte_rate = sample_rate * channels * bit_depth // 8
+    block_align = channels * bit_depth // 8
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + len(pcm_bytes), b"WAVE",
+        b"fmt ", 16, 1, channels, sample_rate,
+        byte_rate, block_align, bit_depth,
+        b"data", len(pcm_bytes),
+    )
+    return header + pcm_bytes
+
+
+def generate_tts(text, voice="Aoede"):
+    """TTS via Gemini API key (generativelanguage.googleapis.com).
+
+    Models tried in order from config tts_models list.
+    Input capped at 200 chars (~10s of speech). Returns: (wav_bytes, None) or (None, error_str)
+    """
+    text = text[:200]  # ~10s of speech at average speaking rate
+    tts_models = get_model_config().get("tts_models", _DEFAULT_MODEL_CONFIG["tts_models"])
+    body = {
+        "contents": [{"parts": [{"text": text}]}],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+            "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
+        },
+    }
+    for _ in range(len(_GEMINI_API_KEYS)):
+        key = _get_api_key()
+        for model in tts_models:
+            try:
+                resp = http_requests.post(
+                    f"{GENAI_ENDPOINT}/models/{model}:generateContent",
+                    headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                    json=body,
+                    timeout=60,
+                )
+            except Exception as e:
+                return None, f"TTS request failed: {e}"
+
+            if resp.status_code == 429:
+                log.warning("[TTS] 429 on key index %d model=%s — rotating key", _key_index % len(_GEMINI_API_KEYS), model)
+                _rotate_api_key()
+                break  # retry outer key-rotation loop
+
+            if resp.status_code == 404:
+                log.info("[TTS] model %s not found, trying next", model)
+                continue
+
+            if resp.status_code == 200:
+                try:
+                    parts = resp.json()["candidates"][0]["content"]["parts"]
+                    audio_b64 = next(p["inlineData"]["data"] for p in parts if "inlineData" in p)
+                    pcm = base64.b64decode(audio_b64)
+                    log.info("[TTS] success model=%s", model)
+                    return _pcm_to_wav(pcm), None
+                except (KeyError, IndexError, StopIteration) as e:
+                    return None, f"TTS response parse error: {e}"
+
+            return None, f"TTS error {resp.status_code}: {resp.text[:200]}"
+
+    return None, "All Gemini API keys / TTS models exhausted"
+
+
+def generate_video_veo(prompt):
+    """Generate a real MP4 video via Veo (generativelanguage.googleapis.com).
+
+    Polls until done (up to 10 min). Returns: (mp4_bytes, None) or (None, error_str)
+    """
+    veo_models = get_model_config().get("veo_models", _DEFAULT_MODEL_CONFIG["veo_models"])
+
+    for _ in range(len(_GEMINI_API_KEYS)):
+        key = _get_api_key()
+        headers = {"x-goog-api-key": key, "Content-Type": "application/json"}
+
+        started = False
+        for model in veo_models:
+            try:
+                resp = http_requests.post(
+                    f"{GENAI_ENDPOINT}/models/{model}:predictLongRunning",
+                    headers=headers,
+                    json={"instances": [{"prompt": prompt}], "parameters": {"durationSeconds": 8}},
+                    timeout=30,
+                )
+            except Exception as e:
+                return None, f"Veo request failed: {e}"
+
+            if resp.status_code == 429:
+                log.warning("[VEO] 429 on key index %d — rotating", _key_index % len(_GEMINI_API_KEYS))
+                _rotate_api_key()
+                break  # retry outer loop with new key
+
+            if resp.status_code == 404:
+                log.info("[VEO] model %s not found, trying next", model)
+                continue
+
+            if resp.status_code != 200:
+                return None, f"Veo start error {resp.status_code}: {resp.text[:200]}"
+
+            operation_name = resp.json().get("name")
+            if not operation_name:
+                return None, "Veo returned no operation name"
+
+            log.info("[VEO] operation started: %s", operation_name)
+            started = True
+
+            # Poll until done (max 10 min = 60 × 10s)
+            for tick in range(60):
+                time.sleep(10)
+                try:
+                    poll = http_requests.get(
+                        f"{GENAI_ENDPOINT}/{operation_name}",
+                        headers=headers,
+                        timeout=30,
+                    )
+                except Exception as e:
+                    log.warning("[VEO] poll error: %s", e)
+                    continue
+
+                if poll.status_code != 200:
+                    continue
+
+                status = poll.json()
+                if not status.get("done"):
+                    log.info("[VEO] tick %d — not done yet", tick + 1)
+                    continue
+
+                # Done — extract video URI
+                try:
+                    video_uri = (
+                        status["response"]["generateVideoResponse"]
+                        ["generatedSamples"][0]["video"]["uri"]
+                    )
+                except (KeyError, IndexError):
+                    return None, "Veo done but no video URI in response"
+
+                log.info("[VEO] downloading video from %s", video_uri[:60])
+                try:
+                    dl = http_requests.get(
+                        video_uri,
+                        headers={"x-goog-api-key": key},
+                        timeout=120,
+                        allow_redirects=True,
+                    )
+                except Exception as e:
+                    return None, f"Video download failed: {e}"
+
+                if dl.status_code == 200:
+                    return dl.content, None
+                return None, f"Video download error {dl.status_code}"
+
+            return None, "Veo generation timed out (10 min)"
+
+        if started:
+            break  # started but timed out — no point rotating key
+
+    return None, "All Gemini API keys exhausted for Veo"
 
 
 def transcribe_audio(user_id, audio_path, mime_type=None):
