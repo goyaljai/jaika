@@ -19,6 +19,7 @@ from flask import (
     Flask, Response, g, jsonify, request, send_file,
     send_from_directory, render_template,
 )
+from flask_cors import CORS
 
 from auth import auth_bp, login_required, _get_user_id, is_admin, is_pro, get_admin_emails, save_admin_emails, get_pro_emails, save_pro_emails, get_contacts, load_token
 from api_compat import compat_bp
@@ -43,6 +44,14 @@ from urllib.parse import urlparse
 import socket
 
 app = Flask(__name__)
+CORS(
+    app,
+    resources={
+        r"/api/*": {"origins": "*"},
+        r"/v1/*": {"origins": "*"},
+        r"/v1beta/*": {"origins": "*"},
+    },
+)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
