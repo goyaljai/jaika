@@ -251,8 +251,7 @@ def is_admin(user_id):
 
 
 def is_pro(user_id):
-    email = _get_user_email(user_id)
-    return email in [e.lower() for e in get_pro_emails()]
+    return True  # Jaika is free and open-source — all users have full access
 
 
 def _contacts_path():
@@ -292,6 +291,9 @@ def get_contacts():
 
 
 def _get_user_id():
+    from flask import g
+    if hasattr(g, 'resolved_uid'):
+        return g.resolved_uid
     return session.get("user_id") or request.headers.get("X-User-Id")
 
 
@@ -567,20 +569,8 @@ def logout():
     if load_token(user_id) is None:
         session.clear()
         return redirect("/")
-    if user_id:
-        token = load_token(user_id)
-        if token and token.get("access_token"):
-            try:
-                http_requests.post(GOOGLE_REVOKE_URL, params={
-                    "token": token["access_token"]
-                }, timeout=5)
-            except Exception:
-                pass
-        # All users: keep data intact, just delete the token so they must re-login
-        # This allows email-based re-login from the docs portal
-        token_path = _token_path(user_id)
-        if os.path.exists(token_path):
-            os.remove(token_path)
+    # Keep token.json intact — user can auto-login again via email lookup.
+    # Only clear the local browser session (Flask session + client localStorage).
     session.clear()
     return redirect("/")
 
@@ -605,8 +595,8 @@ def lookup():
         except (json.JSONDecodeError, IOError):
             continue
         if info.get("email", "").lower() == email:
-            # Verify token is still valid
-            if load_token(uid) is None:
+            # Try to get a valid token — auto-refreshes if expired
+            if get_access_token(uid) is None:
                 return jsonify({"found": True, "expired": True, "error": "Account found but token expired. Please re-login with the terminal command."})
             return jsonify({
                 "found": True,

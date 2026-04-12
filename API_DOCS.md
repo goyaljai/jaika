@@ -103,6 +103,7 @@ data/
 
 - **Login flow**: User runs `curl https://server/login | bash` → browser opens Google OAuth → script catches the callback code → sends to `/auth/exchange` → server exchanges for tokens → saves to `data/users/{uid}/token.json`
 - **Request auth**: Every request includes `X-User-Id: <uid>` header. Server loads the token for that uid.
+- **Public bot pages** (e.g. `/goyaljai`): Use a **per-page session token** instead of a real user ID. The `/goyaljai` route generates a `secrets.token_urlsafe(32)` token, stores it in `_bot_sessions` (1hr TTL), and embeds it as `BOT_TOKEN` in the HTML. A `before_request` hook resolves the token to the real UID server-side — the actual Google user ID is never exposed in the HTML source.
 - **Token refresh (on-demand)**: `auth.get_access_token(uid)` automatically calls Google's token refresh endpoint if the token expires within 5 minutes (`expires_in - 300`).
 - **Token refresh (background)**: A background daemon thread (`token-refresh`) runs every 30 minutes and proactively refreshes tokens for all known users. This prevents the first request after a long idle period from hitting a stale token.
 - **Compat routers**: OpenAI uses `Authorization: Bearer <uid>`, Anthropic uses `x-api-key: <uid>`, Gemini native uses `?key=<uid>`. All are normalized to uid → token lookup.
@@ -167,7 +168,7 @@ Enforced server-side in `app.py` before any API call:
 - **Model names sent**: Exact Gemini model IDs, e.g. `gemini-3-flash-preview`, `gemini-2.5-flash`
 - **Model fallback**: On 404/429/503, immediately skip to next model (no waiting). Only the last model in the chain retries up to 3× with exponential backoff. This prevents long timeouts when preview models are rate-limited.
 - **Fallback chain**: `gemini-3-flash-preview → gemini-3.1-flash-lite-preview → gemini-2.5-flash → gemini-2.5-flash-lite`
-- **TTS model**: Uses `gemini-2.5-flash` first (supports audio modalities), then falls back through the chain if not available.
+- **TTS**: Uses **ElevenLabs** (`eleven_multilingual_v2`) via server-side proxy at `/api/tts`. Two API keys configured (`ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY_2`) with automatic fallback on any error. Returns `audio/mpeg`. Pro/Admin only.
 
 ### Output Sanitization Pipeline
 

@@ -130,32 +130,9 @@ def build_system_instruction(uid: str) -> str:
         try:
             with open(persona_path) as f:
                 persona_content = f.read().strip()
-            # Prepend scope rules BEFORE persona content.
-            scope_rule = (
-                "SYSTEM ROLE: Exclusive Knowledge Processor\n\n"
-                "You operate under a strict Closed-World Assumption. "
-                "Your entire knowledge universe is the document below. "
-                "You answer AS the person described in that document — in first person.\n\n"
-                "1. REASONING (allowed): You may use your general understanding of the world ONLY to "
-                "provide context for a query (e.g. understanding what a 'GPM at Meta' involves), "
-                "but every claim in your answer must be evidence from the document below.\n\n"
-                "2. FIT/ASSESSMENT QUESTIONS (answer these): If asked about suitability or fit "
-                "(e.g. 'Are you a good fit for GPM at Meta?', 'Would you thrive in a startup?'), "
-                "synthesize relevant points from the document and answer as the person.\n\n"
-                "3. MISSING DATA (no hallucination): If information is not in the document — including "
-                "sections with placeholders like [TODO] or [Add here] — say: "
-                "\"Based on what I've shared here, that information isn't available — feel free to reach out directly!\"\n\n"
-                "4. OFF-TOPIC (refuse): If the question is general knowledge unrelated to this person "
-                "(maths, science, coding tutorials, world events, trivia, definitions) — "
-                "answer ONLY: \"That's outside what I share here — feel free to reach out to me directly!\"\n\n"
-                "5. PLACEHOLDERS: Treat any [TODO], [Add ...], or bracketed placeholder text as "
-                "non-existent data. Never invent content for those fields.\n\n"
-                "---\n\n"
-                "THE DOCUMENT (your only knowledge source):\n\n"
-            )
-            result = scope_rule + persona_content
-            _si_cache[uid] = {"text": result, "expires": now + _CACHE_TTL, "bust_mtime": _bust_mtime(uid)}
-            return result
+            # Use the persona content as-is — the author defines all rules and tone.
+            _si_cache[uid] = {"text": persona_content, "expires": now + _CACHE_TTL, "bust_mtime": _bust_mtime(uid)}
+            return persona_content
         except IOError:
             pass
 

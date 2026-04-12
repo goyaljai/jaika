@@ -6,7 +6,9 @@ import functools
 import json
 import logging
 import os
+import secrets
 import threading
+import time
 import urllib.request
 import urllib.error
 
@@ -14,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import (
-    Flask, Response, jsonify, request, send_file,
+    Flask, Response, g, jsonify, request, send_file,
     send_from_directory, render_template,
 )
 
@@ -60,6 +62,35 @@ limiter = Limiter(
     default_limits=["200 per minute"],       # global default for all routes
     storage_uri="memory://",
 )
+
+# ── Bot page session tokens ───────────────────────────────────────────────────
+# Public bot pages embed a short-lived token (not a real user ID) so the actual
+# Google user ID is never exposed in HTML source.
+_BOT_PAGE_UID = "112750385266622618824"
+_bot_sessions = {}  # token -> expires_at (float)
+
+@app.before_request
+def _resolve_bot_token():
+    """Resolve a bot-page session token to the real UID before auth runs.
+
+    Rules:
+    - If X-User-Id is a known bot token → resolve to real UID
+    - If X-User-Id IS the real bot UID directly → block (must use a token)
+    - Anything else → leave for normal auth
+    """
+    raw = request.headers.get("X-User-Id", "")
+    if not raw:
+        return
+    entry = _bot_sessions.get(raw)
+    if entry is not None:
+        if entry > time.time():
+            g.resolved_uid = _BOT_PAGE_UID
+        else:
+            _bot_sessions.pop(raw, None)  # expired → login_required returns 401
+    elif raw == _BOT_PAGE_UID:
+        # Direct use of the bot UID via header is blocked — must obtain a token via /goyaljai
+        g.resolved_uid = None  # → 401 from login_required
+
 
 # ── SSRF Protection ──────────────────────────────────────────────────────────
 _BLOCKED_NETWORKS = [
@@ -224,7 +255,20 @@ def bot_mcdonalds():
 
 @app.route("/goyaljai")
 def bot_goyaljai():
-    return render_template("bot_goyaljai.html")
+    token = secrets.token_urlsafe(32)
+    _bot_sessions[token] = time.time() + 3600  # 1-hour TTL
+    # Lazy cleanup: drop any tokens older than 2 hours
+    cutoff = time.time() - 7200
+    expired = [k for k, v in _bot_sessions.items() if v < cutoff]
+    for k in expired:
+        _bot_sessions.pop(k, None)
+    resp = render_template("bot_goyaljai.html", bot_token=token)
+    from flask import make_response
+    r = make_response(resp)
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    r.headers["Pragma"] = "no-cache"
+    r.headers["Expires"] = "0"
+    return r
 
 
 @app.route("/slides")
@@ -1258,30 +1302,46 @@ def memory_clear():
 # ── TTS ───────────────────────────────────────────────────────────────────────
 
 @app.route("/api/tts", methods=["POST"])
-@limiter.limit("20 per minute")
+@limiter.limit("60 per minute")
 @login_required
 def tts():
-    """Text-to-speech via Gemini responseModalities AUDIO.
-
-    Body: {text: string, voice: string (optional, default Aoede)}
-    Returns: audio/wav binary, or {error} if not supported.
+    """ElevenLabs TTS proxy. POST {text} → audio/mpeg.
+    Tries primary key/voice, falls back to secondary on any error.
     """
     uid = _user_id()
-    if not is_admin(uid) and not is_pro(uid):
-        return jsonify({"error": "Text-to-speech is a Pro feature. Upgrade at /pro"}), 403
     data = request.get_json(force=True)
     text = (data.get("text") or "").strip()
-    voice = data.get("voice", "Aoede")
     if not text:
         return jsonify({"error": "text required"}), 400
 
-    from gemini import generate_tts
-    audio_bytes, err = generate_tts(text, voice)
-    if err:
-        log.warning("[TTS] uid=%s error=%s", uid, err)
-        return jsonify({"error": err}), 502
-    return Response(audio_bytes, mimetype="audio/wav",
-                    headers={"Content-Disposition": "inline; filename=speech.wav"})
+    keys = [
+        (os.environ.get("ELEVENLABS_API_KEY", ""), os.environ.get("ELEVENLABS_VOICE_ID", "")),
+        (os.environ.get("ELEVENLABS_API_KEY_2", ""), os.environ.get("ELEVENLABS_VOICE_ID_2", "")),
+    ]
+    payload = json.dumps({
+        "text": text,
+        "model_id": "eleven_multilingual_v2",
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+    }).encode()
+
+    for api_key, voice_id in keys:
+        if not api_key or not voice_id:
+            continue
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        req = urllib.request.Request(url, data=payload, method="POST")
+        req.add_header("xi-api-key", api_key)
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Accept", "audio/mpeg")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                audio_data = resp.read()
+            log.info("[TTS] uid=%s chars=%d via ElevenLabs", uid, len(text))
+            return Response(audio_data, mimetype="audio/mpeg")
+        except Exception as e:
+            log.warning("[TTS] key %s... failed (%s), trying fallback", api_key[:8], e)
+            continue
+
+    return jsonify({"error": "TTS not available"}), 503
 
 
 # ── Eval ────────────────────────────────────────────────────────────────────
