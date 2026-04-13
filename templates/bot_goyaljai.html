@@ -1437,7 +1437,7 @@ async function startVoiceLoop(noSpeechMs) {
     }
 
     // Play filler AFTER STT succeeds, while LLM runs (sequential rotation)
-    const _fillers = ['/static/filler_2.mp3','/static/filler_1.mp3','/static/filler_3.mp3','/static/filler_4.mp3'];
+    const _fillers = ['/static/filler_1.mp3','/static/filler_2.mp3','/static/filler_3.mp3','/static/filler_4.mp3'];
     if (typeof window._fillerIdx === 'undefined') window._fillerIdx = 0;
     const _fillerAudio = new Audio(_fillers[window._fillerIdx % _fillers.length]);
     window._fillerIdx++;
