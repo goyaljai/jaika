@@ -303,6 +303,9 @@ def login_required(f):
         user_id = _get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
+        # Bot sessions (resolved via _resolve_bot_token) bypass OAuth check
+        if hasattr(g, 'is_bot_session') and g.is_bot_session:
+            return f(*args, **kwargs)
         if get_access_token(user_id) is None:
             token = load_token(user_id)
             if token and token.get("refresh_token"):

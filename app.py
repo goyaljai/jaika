@@ -94,6 +94,7 @@ def _resolve_bot_token():
     if entry is not None:
         if entry > time.time():
             g.resolved_uid = _BOT_PAGE_UID
+            g.is_bot_session = True
         else:
             _bot_sessions.pop(raw, None)  # expired → login_required returns 401
     elif raw == _BOT_PAGE_UID:
