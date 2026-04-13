@@ -1418,12 +1418,15 @@ async function startVoiceLoop(noSpeechMs) {
       return;
     }
 
-    console.log('[Voice] VAD done, blob size:', audioBlob.size, '→ setting thinking');
+    console.log('[Voice] VAD done, blob size:', audioBlob.size, '→ playing filler');
     setVMState('thinking');
-    // Use setTimeout (not rAF) to guarantee browser repaints "Processing..." before fetch
-    await new Promise(r => setTimeout(r, 80));
 
-    // 2. Speech-to-Text
+    // Play a random filler sound instantly while STT+LLM loads
+    const _fillers = ['/static/filler_1.mp3','/static/filler_2.mp3','/static/filler_3.mp3','/static/filler_4.mp3'];
+    const _fillerAudio = new Audio(_fillers[Math.floor(Math.random() * _fillers.length)]);
+    _fillerAudio.play().catch(() => {});
+
+    // 2. Speech-to-Text (runs while filler plays)
     console.log('[Voice] STT fetch start');
     const fd = new FormData();
     fd.append('file', audioBlob, 'audio.webm');
@@ -1461,6 +1464,20 @@ async function startVoiceLoop(noSpeechMs) {
     ];
     const reply = llmData.error ? _fallbacks[Math.floor(Math.random() * _fallbacks.length)] : llmData.text;
     addMessage('bot', reply); // add to chat history
+
+    // Stop filler before real TTS plays
+    _fillerAudio.pause(); _fillerAudio.currentTime = 0;
+
+    // Check for goodbye — end call naturally
+    const _byeWords = /\b(bye|goodbye|good\s*bye|see\s*you|take\s*care|thanks\s*bye|that'?s\s*all|nothing\s*else)\b/i;
+    if (_byeWords.test(sttData.text)) {
+      console.log('[Voice] Bye detected → ending call');
+      const byeReply = "It was great talking to you! Feel free to come back anytime.";
+      addMessage('bot', byeReply);
+      await speakTextAsync(byeReply);
+      switchToChat();
+      return;
+    }
 
     // 4. TTS — speak and wait for it to finish
     console.log('[Voice] → speaking via ElevenLabs, ttsEnabled:', ttsEnabled);
