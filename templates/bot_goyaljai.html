@@ -1071,6 +1071,7 @@ function speakTextAsync(text) {
       currentAudio = audio;
       audio.onended  = () => { URL.revokeObjectURL(url); currentAudio = null; resolve(); };
       audio.onerror  = () => { URL.revokeObjectURL(url); currentAudio = null; resolve(); };
+      audio.onplaying = () => { setVMState('speaking'); };
       audio.play().catch(() => { currentAudio = null; resolve(); });
     }).catch(() => resolve());
   });
@@ -1457,7 +1458,6 @@ async function startVoiceLoop() {
 
     // 4. TTS — speak and wait for it to finish
     console.log('[Voice] → speaking via ElevenLabs, ttsEnabled:', ttsEnabled);
-    setVMState('speaking');
     await speakTextAsync(reply);
     console.log('[Voice] TTS done');
 
