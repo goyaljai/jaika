@@ -8,7 +8,7 @@ import functools
 import secrets
 
 import requests as http_requests
-from flask import Blueprint, request, session, jsonify, redirect  # session kept for clear()
+from flask import Blueprint, request, session, jsonify, redirect, g  # session kept for clear()
 
 
 def _write_json_locked(path, data):
@@ -291,7 +291,6 @@ def get_contacts():
 
 
 def _get_user_id():
-    from flask import g
     if hasattr(g, 'resolved_uid'):
         return g.resolved_uid
     return session.get("user_id") or request.headers.get("X-User-Id")
