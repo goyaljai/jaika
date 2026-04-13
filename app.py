@@ -1337,7 +1337,7 @@ def tts():
     for api_key, voice_id in keys:
         if not api_key or not voice_id:
             continue
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream?output_format=mp3_44100_128"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
         req = urllib.request.Request(url, data=payload, method="POST")
         req.add_header("xi-api-key", api_key)
         req.add_header("Content-Type", "application/json")
