@@ -1386,8 +1386,8 @@ function setVMState(state) {
     statusDot.className   = 'vm-status-dot';
   } else if (state === 'thinking') {
     micIcon.style.display = '';   wave.style.display = 'none';
-    statusTxt.textContent = 'Processing...';
-    statusDot.className   = 'vm-status-dot thinking';
+    statusTxt.textContent = 'Listening to you...';
+    statusDot.className   = 'vm-status-dot';
   } else if (state === 'speaking') {
     micIcon.style.display = 'none'; wave.style.display = 'flex';
     statusTxt.textContent = "Jai's AI Twin is speaking";

@@ -2166,9 +2166,9 @@ function setVoiceState(state) {
     btn.textContent = '⏹'; btn.disabled = false;
     if (st) { st.textContent = '🎙️ Listening...'; st.style.display = 'block'; }
   } else if (state === 'processing') {
-    btn.classList.add('processing');
-    btn.textContent = '⏳'; btn.disabled = true;
-    if (st) { st.textContent = '💭 Thinking...'; st.style.display = 'block'; }
+    btn.classList.add('recording');
+    btn.textContent = '⏹'; btn.disabled = false;
+    if (st) { st.textContent = '🎙️ Listening...'; st.style.display = 'block'; }
   } else if (state === 'speaking') {
     btn.classList.add('speaking');
     btn.textContent = '🔊'; btn.disabled = true;
