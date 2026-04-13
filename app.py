@@ -75,7 +75,7 @@ limiter = Limiter(
 # ── Bot page session tokens ───────────────────────────────────────────────────
 # Public bot pages embed a short-lived token (not a real user ID) so the actual
 # Google user ID is never exposed in HTML source.
-_BOT_PAGE_UID = "112750385266622618824"
+_BOT_PAGE_UID = "116542085266142929154"
 _bot_sessions = {}  # token -> expires_at (float)
 
 @app.before_request
