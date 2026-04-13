@@ -1469,7 +1469,7 @@ async function startVoiceLoop(noSpeechMs) {
     _fillerAudio.pause(); _fillerAudio.currentTime = 0;
 
     // Check for goodbye — end call naturally
-    const _byeWords = /\b(bye|goodbye|good\s*bye|see\s*you|take\s*care|thanks\s*bye|that'?s\s*all|nothing\s*else)\b/i;
+    const _byeWords = /\b(bye|goodbye|good\s*bye|see\s*you|take\s*care|that'?s\s*all|nothing\s*else)\b/i;
     if (_byeWords.test(sttData.text)) {
       console.log('[Voice] Bye detected → ending call');
       const byeReply = "It was great talking to you! Feel free to come back anytime.";
