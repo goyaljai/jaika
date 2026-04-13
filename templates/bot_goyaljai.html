@@ -1447,10 +1447,12 @@ async function startVoiceLoop(noSpeechMs) {
     const _fillerAudioB = new Audio(_fillersB[_idx]);
     const _fillerAudioC = new Audio('/static/filler_7.mp3');
     let _filler7Timer = null;
-    _fillerAudio.onended = () => { _fillerAudioB.play().catch(() => {}); };
+    _fillerAudio.onended = () => {
+      _fillerAudioB.play().catch(() => {});
+      // Start fillerC timer when B starts — plays after B finishes if LLM still loading
+      _filler7Timer = setTimeout(() => { _fillerAudioC.play().catch(() => {}); }, 1500);
+    };
     _fillerAudio.play().catch(() => {});
-    // If LLM hasn't responded in 1.5s, play the "sorry for the wait" filler
-    _filler7Timer = setTimeout(() => { _fillerAudioC.play().catch(() => {}); }, 1500);
 
     // Also add the exchange to the chat widget history (silent — not auto-opened)
     addMessage('user', sttData.text);
