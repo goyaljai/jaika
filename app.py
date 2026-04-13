@@ -23,7 +23,7 @@ from flask_cors import CORS
 
 from auth import auth_bp, login_required, _get_user_id, is_admin, is_pro, get_admin_emails, save_admin_emails, get_pro_emails, save_pro_emails, get_contacts, load_token
 from api_compat import compat_bp
-from gemini import generate, stream_generate, transcribe_audio, get_user_tier, generate_image as gemini_generate_image
+from gemini import generate, stream_generate, transcribe_audio, get_user_tier, generate_image as gemini_generate_image, generate_tts as gemini_generate_tts
 import files as file_store
 from sessions import (
     list_sessions, get_session, create_session, update_session,
@@ -1360,6 +1360,14 @@ def tts():
             log.warning("[TTS] key %s... failed (%s), trying fallback", api_key[:8], e)
             continue
 
+    # ElevenLabs keys exhausted — fall back to Gemini TTS
+    log.info("[TTS] uid=%s ElevenLabs unavailable, trying Gemini TTS fallback", uid)
+    wav_bytes, err = gemini_generate_tts(text)
+    if wav_bytes:
+        log.info("[TTS] uid=%s chars=%d via Gemini TTS fallback", uid, len(text))
+        return Response(wav_bytes, mimetype="audio/wav",
+                        headers={"Cache-Control": "no-cache"})
+    log.warning("[TTS] Gemini TTS fallback also failed: %s", err)
     return jsonify({"error": "TTS not available"}), 503
 
 

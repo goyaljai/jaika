@@ -1362,14 +1362,8 @@ function endCall() {
  * Preserves session_id so conversation history is continuous.
  */
 function switchToChat() {
+  // endCall() already opens the chat widget — no toggleChat() needed
   endCall();
-  if (!chatOpened) {
-    chatOpened = true;
-    // Ensure WELCOME message exists before switching
-    setTimeout(() => { toggleChat(); }, 50);
-  } else {
-    toggleChat();
-  }
 }
 
 /**
