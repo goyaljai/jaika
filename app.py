@@ -106,26 +106,21 @@ def _get_bot_uid():
 
 @app.before_request
 def _resolve_bot_token():
-    """Resolve a bot-page session token to the real UID before auth runs.
-
-    Sets g.resolved_uid = "bot_goyaljai" (for session/data isolation) and
-    g.bot_auth_uid = <real_user> (for borrowing OAuth token to call Gemini).
-    """
+    """Resolve a bot-page session token to a real UID with a valid OAuth token."""
     raw = request.headers.get("X-User-Id", "")
     if not raw:
         return
     entry = _bot_sessions.get(raw)
     if entry is not None:
         if entry > time.time():
-            auth_uid = _get_bot_uid()
-            if auth_uid:
-                g.resolved_uid = "bot_goyaljai"  # data identity — own sessions
-                g.bot_auth_uid = auth_uid          # OAuth token donor
+            bot_uid = _get_bot_uid()
+            if bot_uid:
+                g.resolved_uid = bot_uid
                 g.is_bot_session = True
             else:
-                g.resolved_uid = None  # no valid user → 401
+                g.resolved_uid = None
         else:
-            _bot_sessions.pop(raw, None)  # expired → login_required returns 401
+            _bot_sessions.pop(raw, None)
 
 
 # ── SSRF Protection ──────────────────────────────────────────────────────────
@@ -259,36 +254,7 @@ def privacy_policy_page():
     return render_template("privacy_policy.html")
 
 
-# ── Public Bot Pages ─────────────────────────────────────────────────────────
-
-_BOT_CONFIGS = {
-    "mcdonalds": {
-        "uid": "116542085266142929154",  # jaipriyanka.y24@gmail.com
-        "title": "McBot",
-        "subtitle": "McDonald's India Virtual Assistant",
-        "color": "#DA291C",
-        "accent": "#FFC72C",
-        "logo": "🍔",
-        "welcome": "Hi there! I'm McBot 🍔 Ask me about our menu, offers, or delivery!",
-        "placeholder": "Ask about menu, offers, delivery...",
-    },
-    "goyaljai": {
-        "uid": "112750385266622618824",  # goyaljai.020796@gmail.com
-        "title": "Jai's AI Twin",
-        "subtitle": "Ask me anything about Jai Goyal",
-        "color": "#0077B5",
-        "accent": "#00a0dc",
-        "logo": "👨‍💻",
-        "welcome": "Hi! I'm Jai's AI twin 👋 Ask me about Jai's experience, skills, or background.",
-        "placeholder": "Ask about experience, skills, education...",
-    },
-}
-
-
-@app.route("/mcdonalds")
-def bot_mcdonalds():
-    return render_template("bot_mcdonalds.html")
-
+# ── Public Bot Page ──────────────────────────────────────────────────────────
 
 @app.route("/goyaljai")
 def bot_goyaljai():

@@ -366,12 +366,6 @@ def _retry_delay(attempt, server_delay):
 def _headers(user_id):
     token = get_access_token(user_id)
     if not token:
-        # Bot sessions: borrow OAuth token from a donor account
-        from flask import g as _g
-        donor = getattr(_g, 'bot_auth_uid', None) if _g else None
-        if donor and donor != user_id:
-            token = get_access_token(donor)
-    if not token:
         raise PermissionError("No valid access token")
     return {
         "Authorization": f"Bearer {token}",
