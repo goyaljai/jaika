@@ -382,7 +382,11 @@ a:hover { color: var(--accent-hover); }
 .upload-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .upload-btn:hover { background: var(--border); }
 #mic-btn.recording { background: rgba(220,50,50,0.15); border-color: #dc3232; color: #dc3232; animation: mic-pulse 1s ease-in-out infinite; }
+#mic-btn.processing { background: rgba(88,166,255,0.15); border-color: #58a6ff; color: #58a6ff; animation: mic-pulse 0.6s ease-in-out infinite; }
+#mic-btn.speaking { background: rgba(63,185,80,0.15); border-color: #3fb950; color: #3fb950; animation: speak-wave 0.8s ease-in-out infinite; }
 @keyframes mic-pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+@keyframes speak-wave { 0%,100% { transform:scale(1); } 50% { transform:scale(1.1); } }
+#voice-status { font-size:11px; color:var(--text2); padding:3px 0 0 2px; display:none; }
 .file-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; }
 .file-chip .remove { cursor: pointer; color: var(--red); font-weight: bold; }
@@ -664,6 +668,7 @@ resp = client.chat.completions.create(
             oninput="autoResize(this)"></textarea>
           <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
         </div>
+        <div id="voice-status"></div>
       </div>
     </div>
   </div>
@@ -2137,50 +2142,195 @@ async function searchWithGrounding() {
 // ── Voice recorder ─────────────────────────────────────────
 var mediaRecorder = null;
 var audioChunks = [];
+var voiceState = 'idle'; // idle | listening | processing | speaking
+
+var VAD_SILENCE_MS = 700;   // ms of silence before auto-stop
+var VAD_THRESHOLD = 0.008;  // RMS below this = silence
+var _vadCtx = null;
+var _vadRaf = null;
+
+// TTS sentence queue
+var _ttsQueue = [];
+var _ttsPlaying = false;
+
+function setVoiceState(state) {
+  voiceState = state;
+  var btn = document.getElementById('mic-btn');
+  var st = document.getElementById('voice-status');
+  btn.classList.remove('recording', 'processing', 'speaking');
+  if (state === 'idle') {
+    btn.textContent = '🎤'; btn.disabled = false;
+    if (st) st.style.display = 'none';
+  } else if (state === 'listening') {
+    btn.classList.add('recording');
+    btn.textContent = '⏹'; btn.disabled = false;
+    if (st) { st.textContent = '🎙️ Listening...'; st.style.display = 'block'; }
+  } else if (state === 'processing') {
+    btn.classList.add('processing');
+    btn.textContent = '⏳'; btn.disabled = true;
+    if (st) { st.textContent = '💭 Thinking...'; st.style.display = 'block'; }
+  } else if (state === 'speaking') {
+    btn.classList.add('speaking');
+    btn.textContent = '🔊'; btn.disabled = true;
+    if (st) { st.textContent = '🔊 Speaking...'; st.style.display = 'block'; }
+  }
+}
+
+function _ttsClear() { _ttsQueue = []; _ttsPlaying = false; }
+
+function _ttsDone() {
+  if (_ttsQueue.length > 0) { _ttsPlayNext(); }
+  else { _ttsPlaying = false; if (voiceState === 'speaking') setVoiceState('idle'); }
+}
+
+function _ttsPlayNext() {
+  var sentence = _ttsQueue.shift();
+  if (!sentence) { _ttsPlaying = false; return; }
+  _ttsPlaying = true;
+  if (voiceState !== 'speaking') setVoiceState('speaking');
+  apiFetch('/api/tts', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: sentence})
+  }).then(function(r) { return r.blob(); }).then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var audio = new Audio(url);
+    audio.onended = function() { URL.revokeObjectURL(url); _ttsDone(); };
+    audio.onerror = function() { URL.revokeObjectURL(url); _ttsDone(); };
+    audio.play().catch(function() { _ttsDone(); });
+  }).catch(function() { _ttsDone(); });
+}
+
+function ttsEnqueue(text) {
+  text = text.trim();
+  if (!text) return;
+  _ttsQueue.push(text);
+  if (!_ttsPlaying) _ttsPlayNext();
+}
+
+function extractSentences(buf) {
+  var re = /[^.!?]+[.!?]+/g;
+  var sentences = [], last = 0, m;
+  while ((m = re.exec(buf)) !== null) { sentences.push(m[0]); last = re.lastIndex; }
+  return { sentences: sentences, rest: buf.slice(last) };
+}
 
 async function toggleRecording() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
+  if (voiceState === 'listening') {
+    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
     return;
   }
+  if (voiceState !== 'idle') return;
+
   var stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({audio: true});
-  } catch(e) {
-    alert('Microphone access denied.');
-    return;
-  }
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
+  catch(e) { alert('Microphone access denied.'); return; }
+
   audioChunks = [];
   mediaRecorder = new MediaRecorder(stream);
   mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) audioChunks.push(e.data); };
+
+  // VAD: auto-stop after silence (only after first speech detected)
+  var speechDetected = false, silenceStart = null, vadStopped = false;
+  try {
+    _vadCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var src = _vadCtx.createMediaStreamSource(stream);
+    var analyser = _vadCtx.createAnalyser();
+    analyser.fftSize = 512;
+    src.connect(analyser);
+    var vadBuf = new Float32Array(analyser.frequencyBinCount);
+    function vadCheck() {
+      if (voiceState !== 'listening') return;
+      analyser.getFloatTimeDomainData(vadBuf);
+      var sum = 0;
+      for (var vi = 0; vi < vadBuf.length; vi++) sum += vadBuf[vi] * vadBuf[vi];
+      var rms = Math.sqrt(sum / vadBuf.length);
+      if (rms >= VAD_THRESHOLD) {
+        speechDetected = true; silenceStart = null;
+      } else if (speechDetected) {
+        if (!silenceStart) silenceStart = Date.now();
+        else if (!vadStopped && Date.now() - silenceStart >= VAD_SILENCE_MS) {
+          vadStopped = true;
+          if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+          return;
+        }
+      }
+      _vadRaf = requestAnimationFrame(vadCheck);
+    }
+    _vadRaf = requestAnimationFrame(vadCheck);
+  } catch(e) { /* VAD unavailable, manual stop only */ }
+
   mediaRecorder.onstop = async function() {
     stream.getTracks().forEach(function(t) { t.stop(); });
-    var btn = document.getElementById('mic-btn');
-    btn.classList.remove('recording');
-    btn.textContent = '⏳';
-    btn.disabled = true;
+    if (_vadCtx) { try { _vadCtx.close(); } catch(e) {} _vadCtx = null; }
+    if (_vadRaf) { cancelAnimationFrame(_vadRaf); _vadRaf = null; }
+    setVoiceState('processing');
+    _ttsClear();
+
     var blob = new Blob(audioChunks, {type: 'audio/webm'});
     var form = new FormData();
     form.append('file', blob, 'recording.webm');
+    form.append('stream', 'true');
+    if (currentSession) form.append('session_id', currentSession);
+
     try {
-      var r = await apiFetch('/api/stt', {method: 'POST', body: form});
-      var d = await r.json();
-      if (d.text) {
-        var input = document.getElementById('prompt-input');
-        input.value = (input.value ? input.value + ' ' : '') + d.text;
-        autoResize(input);
-        input.focus();
-      } else {
-        alert(d.error || 'Transcription failed');
+      var r = await apiFetch('/api/voice-prompt', {method: 'POST', body: form});
+      if (!r.ok) {
+        var err = await r.json().catch(function() { return {}; });
+        setVoiceState('idle');
+        appendMessage('model', '<span style="color:var(--red)">' + escHtml(err.error || 'Voice failed') + '</span>');
+        return;
       }
-    } catch(e) { alert('STT request failed'); }
-    btn.textContent = '\uD83C\uDF08';  // reset
-    btn.textContent = '🎤';
-    btn.disabled = false;
+
+      var reader = r.body.getReader();
+      var dec = new TextDecoder();
+      var lineBuf = '', ttsBuf = '', fullText = [];
+      var modelDiv = appendMessage('model', '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>');
+
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        lineBuf += dec.decode(chunk.value, {stream: true});
+        var lines = lineBuf.split('\n');
+        lineBuf = lines.pop();
+        for (var li = 0; li < lines.length; li++) {
+          var line = lines[li].trim();
+          if (!line.startsWith('data: ')) continue;
+          var p; try { p = JSON.parse(line.slice(6)); } catch(e) { continue; }
+          if (p.type === 'transcript') {
+            var userDiv = document.createElement('div');
+            userDiv.className = 'message user';
+            userDiv.textContent = p.text;
+            modelDiv.parentNode.insertBefore(userDiv, modelDiv);
+          } else if (p.type === 'session' && p.session_id) {
+            if (!currentSession) currentSession = p.session_id;
+          } else if (p.text) {
+            fullText.push(p.text);
+            modelDiv.innerHTML = renderMd(fullText.join(''));
+            document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+            ttsBuf += p.text;
+            var ex = extractSentences(ttsBuf);
+            ex.sentences.forEach(function(s) { ttsEnqueue(s); });
+            ttsBuf = ex.rest;
+          }
+        }
+      }
+
+      if (ttsBuf.trim()) ttsEnqueue(ttsBuf.trim());
+      try { modelDiv.querySelectorAll('pre code').forEach(function(el) { hljs.highlightElement(el); }); } catch(e) {}
+      loadSessions();
+      if (currentSession) {
+        var sr = await apiFetch('/api/sessions/' + currentSession);
+        var sess = await sr.json().catch(function() { return {}; });
+        if (sess.title) document.getElementById('chat-title').textContent = sess.title;
+      }
+    } catch(e) {
+      setVoiceState('idle');
+      appendMessage('model', '<span style="color:var(--red)">Voice request failed.</span>');
+    }
   };
+
   mediaRecorder.start();
-  document.getElementById('mic-btn').classList.add('recording');
-  document.getElementById('mic-btn').textContent = '⏹';
+  setVoiceState('listening');
 }
 
 // ── Files ──────────────────────────────────────────────────

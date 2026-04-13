@@ -1337,16 +1337,25 @@ def tts():
     for api_key, voice_id in keys:
         if not api_key or not voice_id:
             continue
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream?output_format=mp3_44100_128"
         req = urllib.request.Request(url, data=payload, method="POST")
         req.add_header("xi-api-key", api_key)
         req.add_header("Content-Type", "application/json")
         req.add_header("Accept", "audio/mpeg")
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                audio_data = resp.read()
-            log.info("[TTS] uid=%s chars=%d via ElevenLabs", uid, len(text))
-            return Response(audio_data, mimetype="audio/mpeg")
+            resp = urllib.request.urlopen(req, timeout=30)
+            log.info("[TTS] uid=%s chars=%d via ElevenLabs stream", uid, len(text))
+            def _stream_tts(r=resp):
+                try:
+                    while True:
+                        chunk = r.read(4096)
+                        if not chunk:
+                            break
+                        yield chunk
+                finally:
+                    r.close()
+            return Response(_stream_tts(), mimetype="audio/mpeg",
+                            headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"})
         except Exception as e:
             log.warning("[TTS] key %s... failed (%s), trying fallback", api_key[:8], e)
             continue
