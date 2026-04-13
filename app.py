@@ -106,16 +106,21 @@ def _get_bot_uid():
 
 @app.before_request
 def _resolve_bot_token():
-    """Resolve a bot-page session token to the real UID before auth runs."""
+    """Resolve a bot-page session token to the real UID before auth runs.
+
+    Sets g.resolved_uid = "bot_goyaljai" (for session/data isolation) and
+    g.bot_auth_uid = <real_user> (for borrowing OAuth token to call Gemini).
+    """
     raw = request.headers.get("X-User-Id", "")
     if not raw:
         return
     entry = _bot_sessions.get(raw)
     if entry is not None:
         if entry > time.time():
-            bot_uid = _get_bot_uid()
-            if bot_uid:
-                g.resolved_uid = bot_uid
+            auth_uid = _get_bot_uid()
+            if auth_uid:
+                g.resolved_uid = "bot_goyaljai"  # data identity — own sessions
+                g.bot_auth_uid = auth_uid          # OAuth token donor
                 g.is_bot_session = True
             else:
                 g.resolved_uid = None  # no valid user → 401
