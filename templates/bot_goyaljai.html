@@ -1418,15 +1418,10 @@ async function startVoiceLoop(noSpeechMs) {
       return;
     }
 
-    console.log('[Voice] VAD done, blob size:', audioBlob.size, '→ playing filler');
+    console.log('[Voice] VAD done, blob size:', audioBlob.size);
     setVMState('thinking');
 
-    // Play a random filler sound instantly while STT+LLM loads
-    const _fillers = ['/static/filler_1.mp3','/static/filler_2.mp3','/static/filler_3.mp3','/static/filler_4.mp3'];
-    const _fillerAudio = new Audio(_fillers[Math.floor(Math.random() * _fillers.length)]);
-    _fillerAudio.play().catch(() => {});
-
-    // 2. Speech-to-Text (runs while filler plays)
+    // 2. Speech-to-Text first (no filler yet — STT is fast)
     console.log('[Voice] STT fetch start');
     const fd = new FormData();
     fd.append('file', audioBlob, 'audio.webm');
@@ -1441,10 +1436,15 @@ async function startVoiceLoop(noSpeechMs) {
       return;
     }
 
+    // Play filler AFTER STT succeeds, while LLM runs
+    const _fillers = ['/static/filler_1.mp3','/static/filler_2.mp3','/static/filler_3.mp3','/static/filler_4.mp3'];
+    const _fillerAudio = new Audio(_fillers[Math.floor(Math.random() * _fillers.length)]);
+    _fillerAudio.play().catch(() => {});
+
     // Also add the exchange to the chat widget history (silent — not auto-opened)
     addMessage('user', sttData.text);
 
-    // 3. LLM call
+    // 3. LLM call (filler plays during this)
     console.log('[Voice] LLM fetch start');
     const llmRes  = await fetch('/api/prompt', {
       method: 'POST',
