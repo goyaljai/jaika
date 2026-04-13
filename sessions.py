@@ -67,7 +67,7 @@ def list_sessions(user_id):
                 "updated": data.get("updated", 0),
                 "message_count": len(data.get("messages", [])),
             })
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
             continue
     sessions.sort(key=lambda s: s.get("updated", 0), reverse=True)
     return sessions

@@ -226,9 +226,10 @@ def static_files(filename):
     return send_from_directory(os.path.join(os.path.dirname(__file__), "static"), filename)
 
 
-@app.route("/pro")
-def pro_page():
-    return render_template("pro.html")
+@app.route("/privacy-policy")
+@app.route("/pro")  # keep old route working
+def privacy_policy_page():
+    return render_template("privacy_policy.html")
 
 
 # ── Public Bot Pages ─────────────────────────────────────────────────────────

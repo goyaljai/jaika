@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jaika — Privacy Policy</title>
+<style>
+:root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 20px; }
+.container { max-width: 720px; margin: 0 auto; }
+h1 { font-size: 32px; font-weight: 800; margin-bottom: 6px; }
+h1 span { color: var(--accent); }
+.updated { color: var(--text2); font-size: 13px; margin-bottom: 36px; }
+h2 { font-size: 17px; font-weight: 700; margin: 28px 0 10px; color: var(--accent); }
+p, li { font-size: 14px; color: var(--text2); line-height: 1.75; }
+ul { padding-left: 20px; margin-top: 6px; }
+li { margin-bottom: 4px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-bottom: 16px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a.back { display: inline-block; margin-top: 32px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Jaika <span>Privacy Policy</span></h1>
+  <p class="updated">Last updated: April 2026</p>
+
+  <div class="card">
+    <h2>1. Who We Are</h2>
+    <p>Jaika is a self-hosted AI platform. It is free, open-source, and runs on personal hardware. There is no company behind Jaika — it is an independent project.</p>
+  </div>
+
+  <div class="card">
+    <h2>2. What Data We Collect</h2>
+    <p>When you sign in with Google, we receive and store:</p>
+    <ul>
+      <li>Your Google user ID</li>
+      <li>Your email address and display name</li>
+      <li>An OAuth access token (used to verify your identity)</li>
+    </ul>
+    <p style="margin-top:10px">During your use of Jaika, we store:</p>
+    <ul>
+      <li>Chat sessions and message history</li>
+      <li>Files you upload</li>
+      <li>Memory facts you explicitly add</li>
+      <li>Skills/personas you create</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>3. How Your Data Is Used</h2>
+    <ul>
+      <li>To authenticate you and provide access to your sessions and files</li>
+      <li>To send your prompts to the Google Gemini API to generate responses</li>
+      <li>To send text to the ElevenLabs API for text-to-speech (TTS) audio</li>
+      <li>To personalise your experience using stored memory facts and skills</li>
+    </ul>
+    <p style="margin-top:10px">Your data is never sold, shared with advertisers, or used for any purpose other than operating Jaika for you.</p>
+  </div>
+
+  <div class="card">
+    <h2>4. Third-Party Services</h2>
+    <ul>
+      <li><strong>Google Gemini API</strong> — your prompts are sent to Google for processing. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>.</li>
+      <li><strong>ElevenLabs</strong> — text sent for TTS is processed by ElevenLabs. See <a href="https://elevenlabs.io/privacy" target="_blank" rel="noopener">ElevenLabs Privacy Policy</a>.</li>
+      <li><strong>Google OAuth</strong> — sign-in is handled by Google. We only receive the data described in Section 2.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>5. Data Retention</h2>
+    <p>Your data is stored on the device running Jaika. Sessions, files, memory, and skills persist until you delete them or an admin removes your account. There is no automatic expiry.</p>
+  </div>
+
+  <div class="card">
+    <h2>6. Your Rights</h2>
+    <ul>
+      <li>You can delete your sessions, files, memory, and skills at any time from within the app</li>
+      <li>You can ask an admin to delete your account and all associated data</li>
+      <li>You can revoke Google OAuth access from your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account settings</a></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>7. Security</h2>
+    <p>Jaika uses Google OAuth for authentication. All API access requires a valid user ID. Data is stored locally on the hosting device. We do not transmit your data beyond the third-party services listed above.</p>
+  </div>
+
+  <div class="card">
+    <h2>8. Contact</h2>
+    <p>Jaika is a personal project. If you have questions or concerns, reach out to the instance administrator directly.</p>
+  </div>
+
+  <a class="back" href="/">← Back to Jaika</a>
+</div>
+</body>
+</html>

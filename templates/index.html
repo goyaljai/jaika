@@ -447,7 +447,7 @@ a:hover { color: var(--accent-hover); }
       <span style="font-size:14px;color:var(--text2)">30+ endpoints</span>
       <span style="font-size:14px;color:var(--text2)">3 SDK routers</span>
       <span style="font-size:14px;color:var(--text2)">Self-hosted</span>
-      <a href="/pro" style="font-size:14px;color:#000;font-weight:600;padding:7px 18px;background:#d4a017;border-radius:6px;text-decoration:none;flex-shrink:0">Get Pro</a>
+      <a href="/privacy-policy" style="font-size:14px;color:var(--text2);text-decoration:none;flex-shrink:0">Privacy Policy</a>
     </div>
   </div>
 
@@ -980,20 +980,16 @@ function showPublicPage(user) {
 
   function ep(method, path, desc, tier, bodyHtml, isPro_gate) {
     var mthClass = 'mth-' + method.toLowerCase();
-    var tierClass = tier === 'PRO' ? 'et-pro' : (tier === 'ADMIN' ? 'et-admin' : 'et-free');
-    var cardClass = tier === 'PRO' ? 'is-pro' : 'is-free';
     var id = 'ep-' + Math.random().toString(36).slice(2,7);
-    return '<div class="ep-card ' + cardClass + '" id="' + id + '">' +
+    return '<div class="ep-card" id="' + id + '">' +
       '<div class="ep-hdr" onclick="(function(el){var b=el.querySelector(\'.ep-body\');var c=el.querySelector(\'.ep-chev\');b.classList.toggle(\'open\');c.textContent=b.classList.contains(\'open\')?\'▲\':\'▼\';})(this.closest(\'.ep-card\'))">' +
         '<span class="mth ' + mthClass + '">' + method + '</span>' +
         '<span class="ep-path">' + esc(path) + '</span>' +
         '<span class="ep-desc-inline">' + esc(desc) + '</span>' +
-        '<span class="ep-tier ' + tierClass + '">' + tier + '</span>' +
         '<span class="ep-chev">▼</span>' +
       '</div>' +
       '<div class="ep-body">' +
         (bodyHtml || '') +
-        '' +
       '</div>' +
     '</div>';
   }
@@ -1046,11 +1042,7 @@ function showPublicPage(user) {
     codeBlock('import requests\n\nr = requests.post(\n    "' + S + '/api/prompt",\n    headers={"X-User-Id": "' + U + '", "Content-Type": "application/json"},\n    json={"prompt": "Hello!", "stream": False}\n)\ndata = r.json()\nprint(data["text"])\nprint("session_id:", data["session_id"])'));
 
   // ── VOICE
-  html += sec('voice', '🎙️', 'Voice & Audio', 'Speech-to-text, text-to-speech, and full voice conversation — Pro only.');
-
-  if (!isPro) {
-    html += '<div class="upgrade-banner"><div class="ub-icon">🎙️</div><div><h3>Voice features require Pro</h3><p>STT, TTS, and Voice Prompt are available on the Pro plan. One-time ₹199 — no subscriptions.</p></div><a href="/pro">Upgrade to Pro</a></div>';
-  }
+  html += sec('voice', '🎙️', 'Voice & Audio', 'Speech-to-text, text-to-speech, and full voice conversation.');
 
   html += ep('POST', '/api/stt', 'Speech-to-text', 'PRO',
     '<div class="ep-body-desc">Upload an audio file (mp3, wav, webm, ogg, m4a, flac, aac, aiff). Returns the transcript.</div>' +
@@ -2216,10 +2208,8 @@ function removeFile(i) { uploadedFiles.splice(i, 1); renderFilePreview(); }
 // ── Init ───────────────────────────────────────────────────
 initLogin();
 </script>
-<div style="position:fixed;bottom:12px;right:12px;z-index:999;opacity:0.85">
-  <a href="https://www.producthunt.com/products/jaika?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-jaika" target="_blank" rel="noopener noreferrer">
-    <img alt="Jaika on Product Hunt" width="200" height="43" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1120577&theme=dark&t=1775828251445">
-  </a>
+<div style="text-align:center;padding:12px;font-size:12px;color:var(--text2)">
+  <a href="/privacy-policy" style="color:var(--text2);text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Privacy Policy</a>
 </div>
 </body>
 </html>

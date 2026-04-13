@@ -231,7 +231,7 @@ def get_file_meta(file_id: str, user_id: str) -> dict | None:
     try:
         with open(meta_path) as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, IOError, UnicodeDecodeError):
         return None
 
 

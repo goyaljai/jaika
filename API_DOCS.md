@@ -68,15 +68,15 @@ cloudcode-pa.googleapis.com  (Google Gemini backend)
 
 | File | Responsibility |
 |---|---|
-| `app.py` | Flask routes, tier enforcement, business logic |
-| `auth.py` | Google OAuth, token storage/refresh, admin/pro checks |
+| `app.py` | Flask routes, admin enforcement, business logic |
+| `auth.py` | Google OAuth, token storage/refresh, admin checks |
 | `gemini.py` | Direct Gemini API calls, model fallback, streaming |
 | `prompt_engine.py` | System prompt, input guardrails, output sanitization, intent hints |
 | `sessions.py` | Per-user conversation history (JSON files) |
 | `files.py` | File upload, format conversion (DOCX→text, XLSX→CSV, etc.) |
 | `skills.py` | Named system prompt modules |
 | `api_compat.py` | OpenAI/Anthropic/Gemini-native proxy routers |
-| `pdf.py` | Markdown → PDF conversion (Pro feature) |
+| `pdf.py` | Markdown → PDF conversion |
 | `templates/index.html` | Single-page app: admin chat UI + user docs portal |
 
 ### Data Storage
@@ -86,15 +86,15 @@ All data is on the local filesystem. No external database.
 ```
 data/
 ├── admins.json           # list of admin emails
-├── pro_users.json        # list of pro emails
 ├── models.json           # model config: fallback chain, thinking model, TTS model (admin-managed)
 ├── contacts.json         # master user registry (uid → email, refresh_token)
 └── users/
     └── {user_id}/
         ├── user.json     # email, name, picture
         ├── token.json    # OAuth access + refresh token
-        ├── memory.json   # persistent facts injected into every chat
+        ├── memory.json   # persistent facts injected into every chat (vectorless RAG KB)
         ├── sessions/     # one JSON file per session (conversation history)
+        ├── skills/       # .md files: named system prompt modules; _persona.md overrides base prompt
         ├── uploads/      # user-uploaded files (1hr TTL)
         └── outputs/      # AI-generated files (30min TTL)
 ```
@@ -141,22 +141,14 @@ Each user's data lives entirely under `data/users/{user_id}/`. Two concurrent us
 
 Nothing else is shared. User A cannot access User B's sessions, files, memory, or token.
 
-### Tier Enforcement
+### Access Control
 
-Enforced server-side in `app.py` before any API call:
+All features are available to every authenticated user. Only admin endpoints are restricted:
 
 | Check | Location |
 |---|---|
-| STT/TTS/voice-prompt requires Pro | Start of each handler |
-| Thinking mode requires Pro | `/api/prompt` before generate call |
-| Grounding requires Pro | `/api/prompt` before generate call |
-| Web fetch with AI requires Pro | `/api/fetch` after raw fetch |
-| Skills write (create/delete) requires Pro | `/api/skills/upload`, `/api/skills/<name> DELETE` |
-| PDF requires Pro | `/api/pdf` |
-| File gen: 5/day for free | In-memory counter `_file_gen_counts` (resets daily) |
-| Storage cap: 50MB free / 500MB pro | Checked before every upload |
-| Session limit: 10 free / 25 pro | `/api/sessions POST` |
 | Admin endpoints | `@admin_required` decorator |
+| Unauthenticated requests | `@login_required` on all `/api/*` routes |
 
 ### Gemini API Details
 
@@ -168,7 +160,7 @@ Enforced server-side in `app.py` before any API call:
 - **Model names sent**: Exact Gemini model IDs, e.g. `gemini-3-flash-preview`, `gemini-2.5-flash`
 - **Model fallback**: On 404/429/503, immediately skip to next model (no waiting). Only the last model in the chain retries up to 3× with exponential backoff. This prevents long timeouts when preview models are rate-limited.
 - **Fallback chain**: `gemini-3-flash-preview → gemini-3.1-flash-lite-preview → gemini-2.5-flash → gemini-2.5-flash-lite`
-- **TTS**: Uses **ElevenLabs** (`eleven_multilingual_v2`) via server-side proxy at `/api/tts`. Two API keys configured (`ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY_2`) with automatic fallback on any error. Returns `audio/mpeg`. Pro/Admin only.
+- **TTS**: Uses **ElevenLabs** (`eleven_multilingual_v2`) via server-side proxy at `/api/tts`. Two API keys configured (`ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY_2`) with automatic fallback on any error. Voice ID: `ibbx9zDYGvLgtYzRbqqG`. Returns `audio/mpeg`.
 
 ### Output Sanitization Pipeline
 

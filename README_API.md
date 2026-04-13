@@ -1,5 +1,49 @@
 # Jaika v2 — API Internals & Rate Limit Strategy
 
+## Deploying to Devices
+
+Both devices run jaika-v2 in a chroot Ubuntu environment on Android via ADB.
+
+**One-command deploy** (from repo root, both devices connected via USB/ADB):
+
+```bash
+bash push_devices.sh
+```
+
+This script:
+1. Builds a `tar.gz` of `v2/jaika-v2/` (excludes `.venv`, `__pycache__`, `._*`, `.env`)
+2. Pushes and extracts into `/data/local/linux/rootfs/opt/jaika-v2/` on both devices
+3. Runs `pip install -r requirements.txt` inside the chroot (unsets Android env vars that break pip)
+4. Restarts `jaika` via `supervisorctl` and waits for RUNNING state
+
+**Devices:**
+
+| Label | Serial | Model | Tailscale URL |
+|-------|--------|-------|---------------|
+| Power | N1VT460414 | moto g power 2025 | `https://ai-vps-goyaljai.tail98a210.ts.net` |
+| Stylus | NB9AA90129 | moto g stylus 5G 2024 | `https://jaika-ai.tail98a210.ts.net` |
+
+**Services managed by supervisord** (all start automatically on boot via init.rc):
+
+| Service | Port | Description |
+|---------|------|-------------|
+| `jaika` | 5244 | Main Flask app (gunicorn, 4w×4t) |
+| `jaika-grpc` | 5245 | gRPC bidirectional chat (admin-only) |
+| `tailscaled` | — | Tailscale VPN daemon (auto-restart, stale-socket cleanup) |
+
+**Manual ADB commands** for reference:
+
+| Action | Command |
+|--------|---------|
+| Push file to Power | `adb -s N1VT460414 push <file> /data/local/tmp/<file>` |
+| Copy into chroot | `adb -s N1VT460414 shell "su 0 cp /data/local/tmp/<file> /data/local/linux/rootfs/opt/jaika-v2/<file>"` |
+| Supervisor status (Power) | `adb -s N1VT460414 shell "su 0 chroot /data/local/linux/rootfs /usr/bin/supervisorctl status"` |
+| Supervisor status (Stylus) | `adb -s NB9AA90129 shell "su 0 chroot /data/local/linux/rootfs /usr/bin/supervisorctl status"` |
+| Restart jaika (Power) | `adb -s N1VT460414 shell "su 0 chroot /data/local/linux/rootfs /usr/bin/supervisorctl restart jaika"` |
+| Restart jaika (Stylus) | `adb -s NB9AA90129 shell "su 0 chroot /data/local/linux/rootfs /usr/bin/supervisorctl restart jaika"` |
+
+---
+
 ## Architecture Overview
 
 Jaika v2 is a Flask backend that wraps the Google Gemini API (via `cloudcode-pa.googleapis.com/v1internal`) and exposes multiple interfaces:
