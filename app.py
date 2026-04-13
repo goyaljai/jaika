@@ -1324,20 +1324,21 @@ def tts():
     if not text:
         return jsonify({"error": "text required"}), 400
 
+    _DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"
     keys = [
-        (os.environ.get("ELEVENLABS_API_KEY", ""), os.environ.get("ELEVENLABS_VOICE_ID", "")),
-        (os.environ.get("ELEVENLABS_API_KEY_2", ""), os.environ.get("ELEVENLABS_VOICE_ID_2", "")),
+        (os.environ.get("ELEVENLABS_API_KEY", ""), os.environ.get("ELEVENLABS_VOICE_ID", _DEFAULT_VOICE)),
+        (os.environ.get("ELEVENLABS_API_KEY_2", ""), os.environ.get("ELEVENLABS_VOICE_ID_2", _DEFAULT_VOICE)),
     ]
     payload = json.dumps({
         "text": text,
-        "model_id": "eleven_multilingual_v2",
+        "model_id": "eleven_flash_v2_5",
         "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
     }).encode()
 
     for api_key, voice_id in keys:
-        if not api_key or not voice_id:
+        if not api_key:
             continue
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream?output_format=mp3_44100_128&optimize_streaming_latency=3"
         req = urllib.request.Request(url, data=payload, method="POST")
         req.add_header("xi-api-key", api_key)
         req.add_header("Content-Type", "application/json")
