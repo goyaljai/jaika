@@ -15,32 +15,45 @@ Components and flows:
 Browser / Client Layer:
 - User presses mic button → Web Audio API creates AudioContext and AnalyserNode
 - VAD (Voice Activity Detection) loop runs at 60fps using FFT 512-point RMS analysis
-- On silence ≥ 700ms (after speech detected), MediaRecorder stops and Blob is assembled
+- On silence ≥ SILENCE_DELAY ms (configurable, ~1800ms after speech detected), MediaRecorder stops and Blob is assembled
 - Blob sent via HTTP POST to /api/stt (multipart/form-data, WAV/WebM)
+- If no speech within noSpeechMs (4s first round, 4s follow-up), call ends automatically
 
 Speech-to-Text (STT) Layer:
 - Flask /api/stt endpoint receives audio blob
 - Forwards to Gemini 2.0 Flash (transcribe_audio) via google-generativeai SDK
 - Returns JSON {transcript: "..."} to client
 
+Filler Audio (Perceived Latency Reduction):
+- Immediately after VAD stops, a random pre-generated filler clip plays ("Hmm let me think...", "So yeah...", "Okay so...", "Right umm...")
+- 4 MP3 files stored in /static/filler_1..4.mp3, generated once via ElevenLabs with the same cloned voice
+- Filler plays instantly (no network hop) while STT+LLM+TTS runs in background
+- Filler audio paused when real TTS response starts playing
+
 LLM Inference Layer:
-- Client POSTs transcript to /api/voice-prompt?stream=true
-- Flask /api/voice-prompt builds system prompt via prompt_engine.py (PersonalityEngine class)
-- Streams response using Gemini Flash SSE via stream_generate()
-- Server-Sent Events (SSE) with delta chunks, [DONE] terminator
-- Client accumulates chunks and uses extractSentences() regex /[^.!?]+[.!?]+/g to split on sentence boundaries as they arrive
+- Client POSTs transcript to /api/prompt (non-streaming for voice)
+- Flask /api/prompt builds system prompt via skills.py build_system_instruction() — checks for _persona.md skill which replaces default prompt entirely
+- Gemini Flash generates response (model fallback chain: gemini-3-flash → gemini-2.5-flash)
+- Returns JSON {text, session_id}
 
 Text-to-Speech (TTS) Layer:
-- Each sentence enqueued to ttsQueue (FIFO)
-- ttsPlayNext() dequeues and POSTs to /api/tts {text: sentence}
-- /api/tts tries ElevenLabs keys in order: key1 → key2 → Gemini TTS fallback
-- ElevenLabs: streams MP3 via /v1/text-to-speech/{voice_id}/stream (free-tier default format)
+- Full response POSTed to /api/tts {text: reply}
+- /api/tts tries ElevenLabs keys in order: key1+voice1 → key2+voice2 → Gemini TTS fallback
+- ElevenLabs: streams MP3 via /v1/text-to-speech/{voice_id}/stream?output_format=mp3_44100_128&optimize_streaming_latency=3
+- Each key has its own cloned voice ID (custom male voice)
+- model_id: eleven_flash_v2_5 (low-latency)
 - Gemini fallback: returns WAV via generativelanguage.googleapis.com/v1beta (generate_tts in gemini.py)
-- Client creates <audio> element, plays when loadeddata fires, dequeues next sentence on ended event
+- Client creates Audio element, sets speaking state on audio.onplaying (not before fetch)
+
+Bye Detection:
+- After STT, transcript checked against regex: /\b(bye|goodbye|see you|take care|that's all|nothing else)\b/i
+- If matched: bot speaks a goodbye message, then ends call and switches to chat widget
+- Prevents infinite loop when user wants to leave
 
 State Machine:
-- idle → listening (mic open) → processing (STT+LLM) → speaking (TTS playing) → idle
-- Visual states reflected in UI: mic-btn CSS classes, voice-status label
+- idle → listening (mic open) → thinking (filler plays, STT+LLM running) → speaking (real TTS playing) → listening (4s timeout) → idle
+- UI shows "Listening to you..." during both listening and thinking states (seamless feel)
+- "Jai's AI Twin is speaking" only when audio.onplaying fires
 
 Session Persistence:
 - Each voice turn appended to vector DB as {role:user, content:transcript} and {role:assistant, content:full_response}
