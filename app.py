@@ -74,32 +74,53 @@ limiter = Limiter(
 
 # ── Bot page session tokens ───────────────────────────────────────────────────
 # Public bot pages embed a short-lived token (not a real user ID) so the actual
-# Google user ID is never exposed in HTML source.
-_BOT_PAGE_UID = "116542085266142929154"
+# Google user ID is never exposed in HTML source.  The bot borrows a real user's
+# OAuth credentials to call Gemini.  _get_bot_uid() auto-picks a user whose
+# token is still valid, so the bot page keeps working even if one account's
+# refresh token gets revoked.
 _bot_sessions = {}  # token -> expires_at (float)
+_cached_bot_uid = None
+_cached_bot_uid_ts = 0
+
+def _get_bot_uid():
+    """Return a user ID that has a valid access token, for bot page API calls."""
+    global _cached_bot_uid, _cached_bot_uid_ts
+    # Re-check every 5 minutes
+    if _cached_bot_uid and time.time() - _cached_bot_uid_ts < 300:
+        return _cached_bot_uid
+    from auth import get_access_token
+    data_dir = os.environ.get("JAIKA_DATA_DIR", "./data")
+    users_dir = os.path.join(data_dir, "users")
+    if not os.path.isdir(users_dir):
+        return None
+    for uid in os.listdir(users_dir):
+        if uid.startswith(".") or uid.startswith("bot_") or uid in ("test", "fake"):
+            continue
+        if get_access_token(uid):
+            _cached_bot_uid = uid
+            _cached_bot_uid_ts = time.time()
+            log.info("[BOT] Using UID %s for bot page API calls", uid)
+            return uid
+    log.warning("[BOT] No user with valid token found for bot page")
+    return None
 
 @app.before_request
 def _resolve_bot_token():
-    """Resolve a bot-page session token to the real UID before auth runs.
-
-    Rules:
-    - If X-User-Id is a known bot token → resolve to real UID
-    - If X-User-Id IS the real bot UID directly → block (must use a token)
-    - Anything else → leave for normal auth
-    """
+    """Resolve a bot-page session token to the real UID before auth runs."""
     raw = request.headers.get("X-User-Id", "")
     if not raw:
         return
     entry = _bot_sessions.get(raw)
     if entry is not None:
         if entry > time.time():
-            g.resolved_uid = _BOT_PAGE_UID
-            g.is_bot_session = True
+            bot_uid = _get_bot_uid()
+            if bot_uid:
+                g.resolved_uid = bot_uid
+                g.is_bot_session = True
+            else:
+                g.resolved_uid = None  # no valid user → 401
         else:
             _bot_sessions.pop(raw, None)  # expired → login_required returns 401
-    elif raw == _BOT_PAGE_UID:
-        # Direct use of the bot UID via header is blocked — must obtain a token via /goyaljai
-        g.resolved_uid = None  # → 401 from login_required
 
 
 # ── SSRF Protection ──────────────────────────────────────────────────────────
