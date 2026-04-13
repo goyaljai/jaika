@@ -1453,7 +1453,13 @@ async function startVoiceLoop(noSpeechMs) {
     if (!vmActive) return;
     sessionId = llmData.session_id;
 
-    const reply = llmData.error ? "Connect with him on LinkedIn for more queries, I may not be able to answer this." : llmData.text;
+    const _fallbacks = [
+      "Hmm, I'm drawing a blank on that one. You could reach out to Jai directly on LinkedIn for a better answer.",
+      "That's a great question — I don't have a good answer right now though. Try connecting with Jai on LinkedIn!",
+      "I wish I could help with that, but it's outside what I know. Jai's LinkedIn is probably the best bet.",
+      "Not sure about that one, honestly. Jai would know better — feel free to ping him on LinkedIn.",
+    ];
+    const reply = llmData.error ? _fallbacks[Math.floor(Math.random() * _fallbacks.length)] : llmData.text;
     addMessage('bot', reply); // add to chat history
 
     // 4. TTS — speak and wait for it to finish
@@ -1461,8 +1467,8 @@ async function startVoiceLoop(noSpeechMs) {
     await speakTextAsync(reply);
     console.log('[Voice] TTS done');
 
-    // 5. Loop back — 2s silence timeout for follow-up, else end call
-    if (vmActive) startVoiceLoop(2000);
+    // 5. Loop back — 4s silence timeout for follow-up, else end call
+    if (vmActive) startVoiceLoop(4000);
 
   } catch(e) {
     console.error('Voice loop error', e);
