@@ -1401,19 +1401,19 @@ function setVMState(state) {
  * Shares sessionId with the text chat so conversation context is preserved
  * regardless of which mode was used for each turn.
  */
-async function startVoiceLoop() {
+async function startVoiceLoop(noSpeechMs) {
+  noSpeechMs = noSpeechMs || 4000; // 4s default, 1.5s after bot speaks
   if (!vmActive) return;
-  console.log('[Voice] Loop start → listening');
+  console.log('[Voice] Loop start → listening (timeout:', noSpeechMs + 'ms)');
   setVMState('listening');
 
   try {
-    // 1. Record with VAD — resolves with blob, or null if no speech in 4s
-    const audioBlob = await recordWithVAD();
+    // 1. Record with VAD — resolves with blob, or null if no speech
+    const audioBlob = await recordWithVAD(noSpeechMs);
     if (!vmActive) return;
 
     if (!audioBlob) {
-      // No speech detected in 4s — switch to chat so user can resume (saves STT/LLM/TTS cost)
-      console.log('[Voice] No speech in 4s → switching to chat');
+      console.log('[Voice] No speech → ending call');
       switchToChat();
       return;
     }
@@ -1461,8 +1461,8 @@ async function startVoiceLoop() {
     await speakTextAsync(reply);
     console.log('[Voice] TTS done');
 
-    // 5. Loop back to listening
-    if (vmActive) startVoiceLoop();
+    // 5. Loop back — 2s silence timeout for follow-up, else end call
+    if (vmActive) startVoiceLoop(2000);
 
   } catch(e) {
     console.error('Voice loop error', e);
@@ -1475,17 +1475,18 @@ async function startVoiceLoop() {
  * that resolves when silence is detected (or after manual stop).
  * Used exclusively by the voice modal loop.
  */
-function recordWithVAD() {
+function recordWithVAD(noSpeechMs) {
+  noSpeechMs = noSpeechMs || 4000;
   return new Promise(async (resolve, reject) => {
     try {
       const stream  = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks  = [];
       let hasSpokeVM  = false;
       let silTimerVM  = null;
-      // If no speech at all within 4s, resolve with null → caller ends the call
+      // If no speech at all within timeout, resolve with null → caller ends the call
       let noSpeechTimer = setTimeout(() => {
         if (recorder.state === 'recording') recorder.stop();
-      }, 4000);
+      }, noSpeechMs);
 
       const ctx      = new AudioContext();
       const analyser = ctx.createAnalyser();
