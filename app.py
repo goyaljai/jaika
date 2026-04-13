@@ -82,26 +82,25 @@ _bot_sessions = {}  # token -> expires_at (float)
 _cached_bot_uid = None
 _cached_bot_uid_ts = 0
 
+_BOT_ALLOWED_UIDS = [
+    "112750385266622618824",  # goyaljai.020796@gmail.com
+    "116542085266142929154",  # jaipriyanka.y24@gmail.com
+    "115574333177630037718",  # goyaljai.y14@gmail.com
+]
+
 def _get_bot_uid():
-    """Return a user ID that has a valid access token, for bot page API calls."""
+    """Return a UID from the allowed list that has a valid access token."""
     global _cached_bot_uid, _cached_bot_uid_ts
-    # Re-check every 5 minutes
     if _cached_bot_uid and time.time() - _cached_bot_uid_ts < 300:
         return _cached_bot_uid
     from auth import get_access_token
-    data_dir = os.environ.get("JAIKA_DATA_DIR", "./data")
-    users_dir = os.path.join(data_dir, "users")
-    if not os.path.isdir(users_dir):
-        return None
-    for uid in os.listdir(users_dir):
-        if uid.startswith(".") or uid.startswith("bot_") or uid in ("test", "fake"):
-            continue
+    for uid in _BOT_ALLOWED_UIDS:
         if get_access_token(uid):
             _cached_bot_uid = uid
             _cached_bot_uid_ts = time.time()
             log.info("[BOT] Using UID %s for bot page API calls", uid)
             return uid
-    log.warning("[BOT] No user with valid token found for bot page")
+    log.warning("[BOT] No allowed user with valid token found for bot page")
     return None
 
 @app.before_request
