@@ -434,12 +434,14 @@ def _build_contents(messages, files=None):
     return contents
 
 
+_FALLBACK_PROJECT_ID = "solid-flames-6zftk"  # shared project for users without their own
+
 def _get_project_id(user_id):
     try:
         return discover_project_and_tier(user_id)["project_id"]
     except Exception as e:
-        log.warning("Could not discover project for %s: %s", user_id, e)
-        return None
+        log.warning("Could not discover project for %s: %s — using fallback project", user_id, e)
+        return _FALLBACK_PROJECT_ID
 
 
 def generate(user_id, messages, files=None, system_instruction=None,
