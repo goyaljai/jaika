@@ -771,7 +771,35 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
             yield f"data: {json.dumps(done_payload)}\n\n"
             return
 
-    log.error("[STREAM] uid=%s all models exhausted tried=%s", user_id, _models_tried)
+    # ── GENAI API key fallback for streaming ──
+    log.info("[STREAM] uid=%s cloudcode exhausted, trying GENAI API key fallback", user_id)
+    _genai_models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+    for gmodel in _genai_models:
+        for _ki in range(len(_GEMINI_API_KEYS)):
+            api_key = _get_api_key()
+            genai_url = f"{GENAI_ENDPOINT}/models/{gmodel}:generateContent?key={api_key}"
+            genai_body = {"contents": contents}
+            if system_instruction:
+                genai_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+            try:
+                gresp = http_requests.post(genai_url, json=genai_body, timeout=180)
+                if gresp.status_code == 200:
+                    gdata = gresp.json()
+                    candidates = gdata.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts)
+                        log.info("[STREAM] uid=%s model=%s (GENAI fallback) OK", user_id, gmodel)
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        return
+                if gresp.status_code in (403, 429):
+                    continue
+                break
+            except Exception:
+                continue
+
+    log.error("[STREAM] uid=%s all models exhausted (incl GENAI) tried=%s", user_id, _models_tried)
     yield f"data: {json.dumps({'error': 'Service temporarily busy. Please retry in a few seconds.'})}\n\n"
 
 
