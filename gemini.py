@@ -434,14 +434,12 @@ def _build_contents(messages, files=None):
     return contents
 
 
-_FALLBACK_PROJECT_ID = "solid-flames-6zftk"  # shared project for users without their own
-
 def _get_project_id(user_id):
     try:
         return discover_project_and_tier(user_id)["project_id"]
     except Exception as e:
-        log.warning("Could not discover project for %s: %s — using fallback project", user_id, e)
-        return _FALLBACK_PROJECT_ID
+        log.warning("Could not discover project for %s: %s", user_id, e)
+        return None
 
 
 def generate(user_id, messages, files=None, system_instruction=None,
@@ -587,8 +585,34 @@ def generate(user_id, messages, files=None, system_instruction=None,
             log.warning("[GEMINI] error body: %s", resp.text[:300])
             return {"error": f"API error ({resp.status_code}): {resp.text}"}
 
+    # ── Fallback: use generativelanguage.googleapis.com with API keys ──
+    # This works for ALL users (no project needed). Tries gemini-2.5-flash.
+    log.info("[GENERATE] uid=%s cloudcode exhausted, trying GENAI API key fallback", user_id)
+    _genai_models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+    for gmodel in _genai_models:
+        api_key = _get_api_key()
+        genai_url = f"{GENAI_ENDPOINT}/models/{gmodel}:generateContent?key={api_key}"
+        genai_body = {"contents": contents}
+        if system_instruction:
+            genai_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+        try:
+            gresp = http_requests.post(genai_url, json=genai_body, timeout=180)
+            log.info("[GENAI-FALLBACK] model=%s status=%s", gmodel, gresp.status_code)
+            if gresp.status_code == 200:
+                gdata = gresp.json()
+                candidates = gdata.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    text = "".join(p.get("text", "") for p in parts)
+                    latency_ms = int((time.time() - _t0) * 1000)
+                    log.info("[GENERATE] uid=%s model=%s (GENAI fallback) latency=%dms", user_id, gmodel, latency_ms)
+                    return {"text": text, "session_id": None, "grounding_results": grounding_results}
+        except Exception as e:
+            log.warning("[GENAI-FALLBACK] model=%s error: %s", gmodel, e)
+            continue
+
     latency_ms = int((time.time() - _t0) * 1000)
-    log.error("[GENERATE] uid=%s all models exhausted tried=%s latency=%dms", user_id, _models_tried, latency_ms)
+    log.error("[GENERATE] uid=%s all models exhausted (incl GENAI fallback) tried=%s latency=%dms", user_id, _models_tried, latency_ms)
     return {"error": "Service temporarily busy. Please retry in a few seconds."}
 
 
