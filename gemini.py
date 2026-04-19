@@ -223,8 +223,6 @@ def discover_project_and_tier(user_id) -> dict:
     load_data = resp.json()
 
     project_id = load_data.get("cloudaicompanionProject")
-    if not project_id:
-        raise ValueError(f"loadCodeAssist returned no project: {load_data}")
 
     # Step 2 — pick tier
     tier = load_data.get("currentTier")
@@ -239,13 +237,15 @@ def discover_project_and_tier(user_id) -> dict:
     tier_id = tier.get("id", "legacy-tier")
     tier_name = tier.get("name", tier_id)
 
-    # Step 3 — onboard if not already onboarded
-    if not load_data.get("currentTier"):
+    # Step 3 — onboard if not already onboarded (or no project yet)
+    if not load_data.get("currentTier") or not project_id:
         onboard_payload = {
             "tierId": tier_id,
-            "cloudaicompanionProject": project_id,
             "metadata": _get_client_metadata(project_id),
         }
+        if project_id:
+            onboard_payload["cloudaicompanionProject"] = project_id
+        log.info("[ONBOARD] uid=%s tier=%s project=%s — calling onboardUser", user_id, tier_id, project_id or "auto-provision")
         ob_resp = http_requests.post(
             f"{ENDPOINT}/v1internal:onboardUser",
             headers=headers,
@@ -253,10 +253,12 @@ def discover_project_and_tier(user_id) -> dict:
             timeout=30,
         )
         if ob_resp.status_code == 200:
-            # Poll until done (max 30s) — read result THEN decide whether to poll again
             for _ in range(6):
                 ob_data = ob_resp.json()
                 if ob_data.get("done"):
+                    # Extract project from onboard response if we didn't have one
+                    if not project_id:
+                        project_id = ob_data.get("response", {}).get("cloudaicompanionProject") or ob_data.get("cloudaicompanionProject")
                     break
                 time.sleep(5)
                 ob_resp = http_requests.post(
@@ -265,10 +267,26 @@ def discover_project_and_tier(user_id) -> dict:
                     data=json.dumps(onboard_payload),
                     timeout=30,
                 )
-                # Read and check the new response immediately (not deferred to next iteration)
                 ob_data = ob_resp.json()
                 if ob_data.get("done"):
+                    if not project_id:
+                        project_id = ob_data.get("response", {}).get("cloudaicompanionProject") or ob_data.get("cloudaicompanionProject")
                     break
+
+        # If onboarding succeeded but we still don't have a project, re-call loadCodeAssist
+        if not project_id:
+            log.info("[ONBOARD] uid=%s re-calling loadCodeAssist after onboard", user_id)
+            resp2 = http_requests.post(
+                f"{ENDPOINT}/v1internal:loadCodeAssist",
+                headers=headers,
+                data=json.dumps({"metadata": _get_client_metadata()}),
+                timeout=30,
+            )
+            if resp2.status_code == 200:
+                project_id = resp2.json().get("cloudaicompanionProject")
+
+    if not project_id:
+        raise ValueError(f"Failed to provision project for user {user_id}")
 
     result = {"project_id": project_id, "tier_id": tier_id, "tier_name": tier_name, "ts": time.time()}
     with _project_cache_lock:
