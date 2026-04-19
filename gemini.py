@@ -564,8 +564,8 @@ def generate(user_id, messages, files=None, system_instruction=None,
                 except PermissionError as e:
                     return {"error": f"Authentication failed: {e}"}
 
-            if resp.status_code == 404:
-                log.warning("[GENERATE] uid=%s model=%s not found, trying next", user_id, model)
+            if resp.status_code in (404, 500):
+                log.warning("[GENERATE] uid=%s model=%s %s, trying next", user_id, model, resp.status_code)
                 break  # try next model
 
             if resp.status_code in (429, 503):
@@ -682,8 +682,8 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
                     yield f"data: {json.dumps({'error': f'Authentication failed: {e}'})}\n\n"
                     return
 
-            if resp.status_code == 404:
-                log.warning("[STREAM] uid=%s model=%s not found, trying next", user_id, model)
+            if resp.status_code in (404, 500):
+                log.warning("[STREAM] uid=%s model=%s %s, trying next", user_id, model, resp.status_code)
                 break  # try next model
 
             if resp.status_code in (429, 503):
