@@ -456,6 +456,22 @@ def _build_contents(messages, files=None):
     return contents
 
 
+def _get_quota_donor_next(original_uid, tried_set):
+    """Find the next user with a valid access token, skipping already-tried ones."""
+    data_dir = os.environ.get("JAIKA_DATA_DIR", "./data")
+    users_dir = os.path.join(data_dir, "users")
+    if not os.path.isdir(users_dir):
+        return None
+    for uid in os.listdir(users_dir):
+        if uid.startswith(".") or uid.startswith("bot_") or uid in ("test", "fake"):
+            continue
+        if uid in tried_set:
+            continue
+        if get_access_token(uid):
+            return uid
+    return None
+
+
 def _get_project_id(user_id):
     try:
         return discover_project_and_tier(user_id)["project_id"]
@@ -606,6 +622,49 @@ def generate(user_id, messages, files=None, system_instruction=None,
 
             log.warning("[GEMINI] error body: %s", resp.text[:300])
             return {"error": f"API error ({resp.status_code}): {resp.text}"}
+
+    # ── Quota sharing: borrow other users' tokens if all models failed ──
+    _tried_donors = {user_id}
+    while True:
+        donor = _get_quota_donor_next(user_id, _tried_donors)
+        if not donor:
+            break
+        _tried_donors.add(donor)
+        log.info("[QUOTA-SHARE] uid=%s borrowing quota from uid=%s", user_id, donor)
+        try:
+            donor_headers = _headers(donor)
+            donor_project = _get_project_id(donor)
+        except Exception:
+            continue
+        donor_exhausted = False
+        for model_idx, (model, use_thinking) in enumerate(model_plan):
+            gc = thinking_gen_config if use_thinking else base_gen_config
+            current_request = dict(request_body)
+            if gc:
+                current_request["generationConfig"] = gc
+            elif "generationConfig" in current_request:
+                del current_request["generationConfig"]
+            body = {"model": model, "project": donor_project, "request": current_request}
+            try:
+                resp = http_requests.post(url, headers=donor_headers, json=body, timeout=180)
+                log.info("[QUOTA-SHARE] model=%s donor=%s status=%s", model, donor, resp.status_code)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates") or data.get("response", {}).get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts if "text" in p and not p.get("thought"))
+                        latency_ms = int((time.time() - _t0) * 1000)
+                        log.info("[GENERATE] uid=%s model=%s (quota-share via %s) latency=%dms", user_id, model, donor, latency_ms)
+                        return {"text": text, "session_id": None, "grounding_results": grounding_results}
+                if resp.status_code in (429, 503):
+                    donor_exhausted = True
+                    break  # this donor is also exhausted, try next donor
+            except Exception:
+                donor_exhausted = True
+                break
+        if not donor_exhausted:
+            break  # non-quota error, stop trying
 
     latency_ms = int((time.time() - _t0) * 1000)
     log.error("[GENERATE] uid=%s all models exhausted tried=%s latency=%dms", user_id, _models_tried, latency_ms)
@@ -763,7 +822,48 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
             yield f"data: {json.dumps(done_payload)}\n\n"
             return
 
-    log.error("[STREAM] uid=%s all models exhausted tried=%s", user_id, _models_tried)
+    # ── Quota sharing for streaming ──
+    _tried_donors = {user_id}
+    while True:
+        donor = _get_quota_donor_next(user_id, _tried_donors)
+        if not donor:
+            break
+        _tried_donors.add(donor)
+        log.info("[QUOTA-SHARE-STREAM] uid=%s borrowing from uid=%s", user_id, donor)
+        try:
+            donor_headers = _headers(donor)
+            donor_project = _get_project_id(donor)
+        except Exception:
+            continue
+        # Try first model with donor (non-streaming fallback — simpler, still works)
+        for model, use_thinking in model_plan:
+            gc = thinking_gen_config if use_thinking else base_gen_config
+            current_request = dict(request_body)
+            if gc:
+                current_request["generationConfig"] = gc
+            elif "generationConfig" in current_request:
+                del current_request["generationConfig"]
+            body = {"model": model, "project": donor_project, "request": current_request}
+            try:
+                resp = http_requests.post(
+                    f"{ENDPOINT}/v1internal:generateContent",
+                    headers=donor_headers, json=body, timeout=180)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates") or data.get("response", {}).get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts if "text" in p and not p.get("thought"))
+                        log.info("[STREAM] uid=%s model=%s (quota-share via %s) OK", user_id, model, donor)
+                        yield f"data: {json.dumps({'text': text})}\n\n"
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        return
+                if resp.status_code in (429, 503):
+                    break  # donor exhausted, try next
+            except Exception:
+                break
+
+    log.error("[STREAM] uid=%s all models + donors exhausted tried=%s", user_id, _models_tried)
     yield f"data: {json.dumps({'error': 'Service temporarily busy. Please retry in a few seconds.'})}\n\n"
 
 
