@@ -940,6 +940,46 @@ def generate_image(user_id, prompt):
             log.warning("Image model %s returned %s: %s", model, resp.status_code, resp.text[:200])
             break  # try next model
 
+    # ── Quota sharing for image generation ──
+    _tried_donors = {user_id}
+    while True:
+        donor = _get_quota_donor_next(user_id, _tried_donors)
+        if not donor:
+            break
+        _tried_donors.add(donor)
+        log.info("[QUOTA-SHARE-IMAGE] uid=%s borrowing from uid=%s", user_id, donor)
+        try:
+            donor_headers = _headers(donor)
+            donor_project = _get_project_id(donor)
+        except Exception:
+            continue
+        for model in image_models:
+            body = {"model": model, "project": donor_project, "request": request_body}
+            try:
+                resp = http_requests.post(url, headers=donor_headers, json=body, timeout=120)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    try:
+                        parts = data["response"]["candidates"][0]["content"]["parts"]
+                    except (KeyError, IndexError):
+                        break
+                    image_b64 = None
+                    image_mime = "image/png"
+                    caption = ""
+                    for part in parts:
+                        if "inline_data" in part:
+                            image_b64 = part["inline_data"]["data"]
+                            image_mime = part["inline_data"].get("mimeType", "image/png")
+                        elif "text" in part:
+                            caption = part["text"]
+                    if image_b64:
+                        log.info("[QUOTA-SHARE-IMAGE] uid=%s model=%s via donor=%s OK", user_id, model, donor)
+                        return base64.b64decode(image_b64), image_mime, caption
+                if resp.status_code in (429, 503):
+                    break  # donor exhausted
+            except Exception:
+                break
+
     return None, None, "Image generation not available — try /api/generate/file with type=svg"
 
 
