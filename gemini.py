@@ -22,9 +22,9 @@ GENAI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
 # Gemini API keys for features not supported by cloudcode-pa (TTS, Veo video).
 # Keys are rotated round-robin on 429 / quota exhaustion.
 _GEMINI_API_KEYS = [
-    "YOUR_GEMINI_API_KEY_3",  # billing-enabled, Veo + TTS
-    "AIzaSyD9j2xSxdvKoOW0TwdrSioge--_NPd3uLQ",  # TTS only fallback
-    "YOUR_GEMINI_API_KEY_2",  # TTS only fallback
+    "YOUR_GEMINI_API_KEY_1",  # primary — chat + TTS + Veo
+    "YOUR_GEMINI_API_KEY_2",  # fallback
+    "YOUR_GEMINI_API_KEY_3",  # suspended — kept for rotation recovery
 ]
 _key_index = 0
 _key_lock = threading.Lock()
@@ -586,30 +586,34 @@ def generate(user_id, messages, files=None, system_instruction=None,
             return {"error": f"API error ({resp.status_code}): {resp.text}"}
 
     # ── Fallback: use generativelanguage.googleapis.com with API keys ──
-    # This works for ALL users (no project needed). Tries gemini-2.5-flash.
+    # Works for ALL users — no project needed. Tries each API key with each model.
     log.info("[GENERATE] uid=%s cloudcode exhausted, trying GENAI API key fallback", user_id)
     _genai_models = ["gemini-2.5-flash", "gemini-2.0-flash"]
     for gmodel in _genai_models:
-        api_key = _get_api_key()
-        genai_url = f"{GENAI_ENDPOINT}/models/{gmodel}:generateContent?key={api_key}"
-        genai_body = {"contents": contents}
-        if system_instruction:
-            genai_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
-        try:
-            gresp = http_requests.post(genai_url, json=genai_body, timeout=180)
-            log.info("[GENAI-FALLBACK] model=%s status=%s", gmodel, gresp.status_code)
-            if gresp.status_code == 200:
-                gdata = gresp.json()
-                candidates = gdata.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    text = "".join(p.get("text", "") for p in parts)
-                    latency_ms = int((time.time() - _t0) * 1000)
-                    log.info("[GENERATE] uid=%s model=%s (GENAI fallback) latency=%dms", user_id, gmodel, latency_ms)
-                    return {"text": text, "session_id": None, "grounding_results": grounding_results}
-        except Exception as e:
-            log.warning("[GENAI-FALLBACK] model=%s error: %s", gmodel, e)
-            continue
+        for _ki in range(len(_GEMINI_API_KEYS)):
+            api_key = _get_api_key()
+            genai_url = f"{GENAI_ENDPOINT}/models/{gmodel}:generateContent?key={api_key}"
+            genai_body = {"contents": contents}
+            if system_instruction:
+                genai_body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+            try:
+                gresp = http_requests.post(genai_url, json=genai_body, timeout=180)
+                log.info("[GENAI-FALLBACK] model=%s key=%s... status=%s", gmodel, api_key[:10], gresp.status_code)
+                if gresp.status_code == 200:
+                    gdata = gresp.json()
+                    candidates = gdata.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts)
+                        latency_ms = int((time.time() - _t0) * 1000)
+                        log.info("[GENERATE] uid=%s model=%s (GENAI fallback) latency=%dms", user_id, gmodel, latency_ms)
+                        return {"text": text, "session_id": None, "grounding_results": grounding_results}
+                if gresp.status_code in (403, 429):
+                    continue  # try next key
+                break  # other error, try next model
+            except Exception as e:
+                log.warning("[GENAI-FALLBACK] model=%s error: %s", gmodel, e)
+                continue
 
     latency_ms = int((time.time() - _t0) * 1000)
     log.error("[GENERATE] uid=%s all models exhausted (incl GENAI fallback) tried=%s latency=%dms", user_id, _models_tried, latency_ms)
