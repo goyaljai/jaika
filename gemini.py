@@ -288,6 +288,10 @@ def discover_project_and_tier(user_id) -> dict:
     if not project_id:
         raise ValueError(f"Failed to provision project for user {user_id}")
 
+    # cloudaicompanionProject may be a string or an object {id, name, projectNumber}
+    if isinstance(project_id, dict):
+        project_id = project_id.get("id") or project_id.get("name")
+
     result = {"project_id": project_id, "tier_id": tier_id, "tier_name": tier_name, "ts": time.time()}
     with _project_cache_lock:
         _project_cache[user_id] = result
