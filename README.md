@@ -14,7 +14,7 @@
 [![50+ Endpoints](https://img.shields.io/badge/endpoints-50+-green.svg)](#api-reference)
 [![3 SDK Routers](https://img.shields.io/badge/SDK_routers-3-orange.svg)](#sdk-compatibility)
 
-**[Live Demo](https://35-207-202-131.sslip.io/)** · **[API Docs](README_API.md)** · **[Medium Article](medium.md)** · **[Report Bug](https://github.com/goyaljai/jaika/issues)**
+**[Live Demo](https://35-207-202-131.sslip.io/)** · **[API Docs](README_API.md)** · **[Report Bug](https://github.com/goyaljai/jaika/issues)**
 
 </div>
 
