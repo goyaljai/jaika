@@ -1,42 +1,51 @@
 # Jai Goyal — Skills & About Me
 
 ## Bio
-<!-- Paste 2-3 lines from your LinkedIn summary -->
-Builder at heart. I build AI-powered products and developer tools.
-Currently working on Jaika — an AI API server running on Android devices.
-Based in India. Open to collaborations and consulting.
+Software Engineer IV at Glance (InMobi Group) with 8 years of Android experience.
+Building AI-powered consumer and enterprise products at scale — shipping to 200M+ Android devices globally.
+Full-stack engineer across Android (SDK Development), Backend (Springboot, GCP, Kubernetes), and AI infrastructure (LangChain, LLM pipelines).
 
 ## Current Work
-- **Jaika** — Self-hosted AI API server (Gemini-backed, OpenAI-compatible) running on Android hardware
-- Building AI-first developer tools and products
+- **Jaika** — Open-source AI voice assistant with real-time voice, LangChain pipelines, Gemini LLM, self-hosted on Android
+- **Glance AI Shopping Assistant** — Conversational AI on Android lockscreen for in-surface product discovery and purchase
+- **Android AI Wallpaper Engine** — On-device + cloud GenAI pipeline using multi-modal LLMs, deployed to 100M+ devices
 
 ## Experience
-<!-- Add your roles here -->
-- ...
+- **Software Engineer IV** — Glance (InMobi Group), Bengaluru (2024–Present)
+- **Software Engineer III** — Glance (InMobi Group), Bengaluru (2022–2024)
+- **Software Engineer II** — Glance (InMobi Group), Bengaluru (2021–2022)
+- **Software Developer II** — OnePlus, Hyderabad (2020–2021)
+- **Software Engineer** — Samsung Electronics, Noida (2018–2020)
 
 ## Skills
-- Python, Flask, REST APIs
-- Android, ADB, Linux
-- AI/ML — Gemini, OpenAI APIs, prompt engineering
-- Full-stack: HTML/CSS/JS, React basics
-- DevOps: gunicorn, supervisord, shell scripting
-- OAuth 2.0, token management
+- **Mobile & Platform:** Kotlin, Java, Android SDK, Jetpack Compose, KMP, CMP, Coroutines & Flow, Dagger/Hilt
+- **AI / ML:** LangChain, LangFuse, RAG Pipelines, Gemini API, On-device Inference, LLM Integration
+- **Architecture & Backend:** Software Architecture, Design Patterns, Springboot, Kubernetes, GCP, Vertex AI
 
 ## Education
-<!-- Add your education -->
-- ...
+- B.Tech. in Computer Science Engineering — LNMIIT, Jaipur (2014–2018)
 
 ## Notable Projects
-- **Jaika API** — Multi-model Gemini API server with OAuth, memory, sessions, OpenAI compat layer
-- ...
+- **Jaika** — Open-source AI voice assistant: real-time voice, LangChain, Gemini, ElevenLabs TTS, self-hosted on Android
+- **Glance AI Wallpaper Engine** — Multi-modal GenAI pipeline, 40% increase in sessions/user on 100M+ devices
+- **LLM Content Generation Platform** — Advertiser AI tools: 40% productivity boost, 35% cost reduction
+- **Framework SDK** — Lockscreen surfaces for OEM partners (Vivo, Oppo, Motorola), 30M+ devices
+
+## Publications
+- Smartphone Battery SoC Estimation and Battery Lifetime Prediction — IEEE, July 2020
+- Battery Lifetime Estimation Based on Usage Pattern, SocProS 2020 — Researchgate, Oct 2021
+
+## Awards
+- Employee of the Year — Real Star (2025), Glance
+- Employee of the Year — Bond007 (2024), Glance
 
 ## Contact
 - LinkedIn: https://www.linkedin.com/in/goyaljai
-- Blog: https://goyaljai.medium.com/
-- Email: <!-- your email -->
+- Blog: https://goyaljai.medium.com
+- GitHub: https://github.com/goyaljai
 
 ## Personality / How I work
+- Builder at heart — prefer shipping over planning
 - Direct and to the point
-- Prefer building over planning
 - Like clean, minimal code
-- Always deploying, always shipping
+- Always deploying, always iterating
