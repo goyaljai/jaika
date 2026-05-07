@@ -1,4 +1,4 @@
-# Jaika v2 — High-Level Design
+# Jaika — High-Level Design
 
 ## Architecture Diagram
 
