@@ -13,9 +13,8 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/goyaljai/jaika/pulls)
 [![50+ Endpoints](https://img.shields.io/badge/endpoints-50+-green.svg)](#api-reference)
 [![3 SDK Routers](https://img.shields.io/badge/SDK_routers-3-orange.svg)](#sdk-compatibility)
-[![Self-hosted](https://img.shields.io/badge/hosting-self--hosted-blueviolet.svg)](#deploy-to-android-vps)
 
-**[Live Demo](https://ai-vps-goyaljai.tail98a210.ts.net)** · **[API Docs](README_API.md)** · **[Medium Article](medium.md)** · **[Report Bug](https://github.com/goyaljai/jaika/issues)**
+**[Live Demo](https://35-207-202-131.sslip.io/)** · **[API Docs](README_API.md)** · **[Medium Article](medium.md)** · **[Report Bug](https://github.com/goyaljai/jaika/issues)**
 
 </div>
 
@@ -24,7 +23,7 @@
 ## Sign in with Google — start building in seconds
 
 ```bash
-curl -sL https://ai-vps-goyaljai.tail98a210.ts.net/auth/script | bash
+curl -sL https://35-207-202-131.sslip.io/auth/script | bash
 ```
 
 ---
@@ -33,7 +32,7 @@ curl -sL https://ai-vps-goyaljai.tail98a210.ts.net/auth/script | bash
 
 ```bash
 # Chat with AI
-curl -X POST /api/prompt \
+curl -X POST https://35-207-202-131.sslip.io/api/prompt \
   -H "X-User-Id: YOUR_USER_ID" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Hello!", "stream": false}'
@@ -43,7 +42,7 @@ curl -X POST /api/prompt \
 # Drop-in OpenAI replacement
 import openai
 client = openai.OpenAI(
-    base_url="https://your-server/v1",
+    base_url="https://35-207-202-131.sslip.io/v1",
     api_key="YOUR_USER_ID"
 )
 resp = client.chat.completions.create(
@@ -54,7 +53,7 @@ resp = client.chat.completions.create(
 
 ```bash
 # AI file generation
-curl -X POST /api/generate/file \
+curl -X POST https://35-207-202-131.sslip.io/api/generate/file \
   -H "X-User-Id: YOUR_USER_ID" \
   -d '{"prompt": "coffee shop landing page", "type": "html"}'
 ```
@@ -69,9 +68,8 @@ curl -X POST /api/generate/file \
 | **OpenAI SDK** | ✅ Drop-in | ✅ Native |
 | **Anthropic SDK** | ✅ Drop-in | ✅ Native |
 | **Voice** | ✅ Built-in | ❌ Separate service |
-| **LangChain** | ✅ Native pipelines | ❌ Extra setup |
+| **LangChain + RAG** | ✅ Native pipelines | ❌ Extra setup |
 | **Files + Memory** | ✅ Per-user | ❌ Custom build |
-| **Self-hosted** | ✅ Your hardware | ❌ Vendor lock-in |
 
 ---
 
@@ -84,7 +82,6 @@ curl -X POST /api/generate/file \
 - [Voice Pipeline](#voice-pipeline)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
-- [Deploy to Android VPS](#deploy-to-android-vps)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 
@@ -94,7 +91,7 @@ curl -X POST /api/generate/file \
 
 ### 💬 Chat & AI
 - **50+ REST endpoints** — chat, memory, sessions, files, voice, generation, admin
-- **LangChain pipelines** — composable chains for prompt routing, memory, tool use, and RAG
+- **LangChain pipelines with RAG** — composable chains for prompt routing, memory, tool use, and retrieval
 - **Multi-model fallback** — Gemini 2.5 Flash → 2.5 Flash Lite → 3 Flash → 3.1 Flash Lite, automatic
 - **Per-user personas** — `_persona` skill replaces the system prompt entirely, per user
 - **Web grounding** — SerpAPI integration for real-time search
@@ -170,7 +167,7 @@ python3 app.py
 gunicorn --bind 0.0.0.0:5244 --workers 4 --threads 4 --timeout 120 app:app
 ```
 
-Open `http://localhost:5244` — sign in with Google and start building.
+Open `https://35-207-202-131.sslip.io/` — sign in with Google and start building.
 
 ---
 
@@ -207,7 +204,7 @@ Jaika exposes 3 SDK-compatible routers via `api_compat.py`. Change `base_url` �
 ```python
 from openai import OpenAI
 client = OpenAI(
-    base_url="https://your-server/v1",
+    base_url="https://35-207-202-131.sslip.io/v1",
     api_key="YOUR_USER_ID"
 )
 resp = client.chat.completions.create(
@@ -220,7 +217,7 @@ resp = client.chat.completions.create(
 ```python
 from anthropic import Anthropic
 client = Anthropic(
-    base_url="https://your-server/v1",
+    base_url="https://35-207-202-131.sslip.io/v1",
     api_key="YOUR_USER_ID"
 )
 msg = client.messages.create(
@@ -232,7 +229,7 @@ msg = client.messages.create(
 
 **Gemini-native**
 ```bash
-curl -X POST https://your-server/v1beta/models/gemini-2.5-flash:generateContent \
+curl -X POST https://35-207-202-131.sslip.io/v1beta/models/gemini-2.5-flash:generateContent \
   -H "X-User-Id: YOUR_USER_ID" \
   -d '{"contents": [{"parts": [{"text": "Hello!"}]}]}'
 ```
@@ -252,7 +249,7 @@ STT (Gemini Flash) ──► Filler audio plays instantly
     │                    ("Yeah, so umm..." in cloned voice)
     ▼
 LangChain Pipeline
-    ├── Memory retrieval
+    ├── Memory retrieval (RAG)
     ├── Skill / persona routing
     ├── Tool use (search, files, image gen)
     └── Prompt assembly
@@ -287,7 +284,7 @@ Browser / curl / SDK
 │                             └─────────────┘  │
 │  ┌──────────────────────────────────────┐    │
 │  │   LangChain — prompt_engine.py       │    │
-│  │   Memory · Guardrails · Skills · RAG │    │
+│  │   RAG · Memory · Guardrails · Skills │    │
 │  └──────────────────────────────────────┘    │
 │                                              │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐     │
@@ -306,12 +303,12 @@ cloudcode-pa.googleapis.com  (Google Gemini)
 | Layer | Technology |
 |---|---|
 | **Backend** | Flask, Gunicorn, Python 3.10 |
-| **AI Orchestration** | LangChain (chains, memory, tool use, RAG) |
+| **AI Orchestration** | LangChain (chains, memory, RAG, tool use) |
 | **LLM** | Google Gemini (multi-model fallback) |
 | **TTS** | ElevenLabs + Gemini TTS fallback |
 | **STT** | Gemini Flash |
 | **Auth** | Google OAuth 2.0 (PKCE, auto token refresh) |
-| **Hosting** | Rooted Android phones, Ubuntu chroot, Tailscale |
+| **Hosting** | GCP |
 | **SDK compat** | OpenAI, Anthropic, Gemini |
 
 ---
@@ -323,7 +320,7 @@ jaika/
 ├── app.py              # Main Flask app, all routes
 ├── auth.py             # Google OAuth, token management
 ├── gemini.py           # Gemini API — chat, stream, image, video, TTS, STT
-├── prompt_engine.py    # LangChain — prompt builder, memory, guardrails
+├── prompt_engine.py    # LangChain — prompt builder, RAG, memory, guardrails
 ├── skills.py           # Per-user skills and persona system
 ├── sessions.py         # Session and message storage
 ├── files.py            # File upload and management
@@ -336,40 +333,19 @@ jaika/
 │   └── slides.html     # Presentation mode
 ├── static/
 │   └── filler_*.mp3    # Pre-generated voice filler clips
-├── deploy.sh           # One-command deploy to Android device
 └── requirements.txt
 ```
-
----
-
-## Deploy to Android VPS
-
-Full guide: [medium.md](medium.md)
-
-```bash
-# Prerequisites: rooted Android, Linux chroot (Ubuntu)
-apt install python3 python3-pip supervisor
-
-git clone https://github.com/goyaljai/jaika.git
-cd jaika && cp .env.example .env
-
-supervisord -c supervisord.conf
-bash deploy.sh
-```
-
-**Why Android?** Always-on, fanless, ~5W idle, 8–12GB RAM, $0/month.
 
 ---
 
 ## Roadmap
 
 - [ ] Web UI installer (no CLI setup)
-- [ ] Multi-device load balancing
 - [ ] WhatsApp / Telegram bot integration
 - [ ] Local STT fallback (Whisper on-device)
 - [ ] Expanded LangChain tool integrations
 - [ ] Plugin marketplace for skills
-- [ ] Docker image for non-Android deployments
+- [ ] Docker image
 
 ---
 
