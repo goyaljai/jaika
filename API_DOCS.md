@@ -1,4 +1,4 @@
-# Jaika v2 — API Reference & High Level Design
+# Jaika — API Reference & High Level Design
 
 ---
 
@@ -821,12 +821,12 @@ curl -X DELETE $SERVER/api/admin/models/fallback/gemini-3.1-flash-lite-preview \
 
 ## Deployment — Device Restart Commands
 
-Files live inside a chroot at `/data/local/linux/rootfs/opt/jaika-v2/` on each Android device.
+Files live inside a chroot at `/data/local/linux/rootfs/opt/jaika/` on each Android device.
 
 ```bash
 # Push updated files into chroot (from Mac/dev machine)
-adb -s <SERIAL> push app.py /storage/emulated/0/jaika-v2/app.py
-adb -s <SERIAL> shell "su 0 sh -c 'cp /storage/emulated/0/jaika-v2/app.py /data/local/linux/rootfs/opt/jaika-v2/app.py'"
+adb -s <SERIAL> push app.py /storage/emulated/0/jaika/app.py
+adb -s <SERIAL> shell "su 0 sh -c 'cp /storage/emulated/0/jaika/app.py /data/local/linux/rootfs/opt/jaika/app.py'"
 
 # Restart jaika via supervisorctl inside chroot
 adb -s <SERIAL> shell "su 0 sh -c 'chroot /data/local/linux/rootfs /usr/bin/supervisorctl restart jaika'"
@@ -844,7 +844,7 @@ adb -s <SERIAL> shell "su 0 sh -c 'chroot /data/local/linux/rootfs /usr/bin/supe
 **Two-device deploy shortcut:**
 ```bash
 for SERIAL in N1VT460414 NB9AA90129; do
-  adb -s $SERIAL push skills.py /storage/emulated/0/jaika-v2/skills.py
-  adb -s $SERIAL shell "su 0 sh -c 'cp /storage/emulated/0/jaika-v2/skills.py /data/local/linux/rootfs/opt/jaika-v2/skills.py && chroot /data/local/linux/rootfs /usr/bin/supervisorctl restart jaika'"
+  adb -s $SERIAL push skills.py /storage/emulated/0/jaika/skills.py
+  adb -s $SERIAL shell "su 0 sh -c 'cp /storage/emulated/0/jaika/skills.py /data/local/linux/rootfs/opt/jaika/skills.py && chroot /data/local/linux/rootfs /usr/bin/supervisorctl restart jaika'"
 done
 ```
