@@ -145,7 +145,7 @@ Bot Session Token System (/goyaljai page):
 
 Tailscale Network Layer:
 - Server runs inside Ubuntu chroot on Android (PocketServer architecture)
-- Exposed via Tailscale MagicDNS: ai-vps-goyaljai.tail98a210.ts.net
+- Exposed via Tailscale MagicDNS: 35-207-202-131.sslip.io
 - CORS configured for /api/* → origins: "*" to allow embedded widget calls
 - Gunicorn behind reverse proxy (supervisord-managed)
 

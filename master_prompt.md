@@ -75,7 +75,7 @@ The chatbot should use this as its knowledge base about me:
 The chatbot calls **Jaika API** with these exact parameters:
 
 ```javascript
-const JAIKA_SERVER = "http://ai-vps-goyaljai.tail98a210.ts.net:5244";
+const JAIKA_SERVER = "http://35-207-202-131.sslip.io:5244";
 const JAIKA_USER_ID = "YOUR_USER_ID_HERE";  // replace with actual user ID
 
 async function askJaika(userMessage, sessionId) {

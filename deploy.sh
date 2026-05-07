@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Jaika v2 — Deployment script for chroot Ubuntu / VPS
+# Jaika — Deployment script for chroot Ubuntu / VPS
 # Usage: bash deploy.sh
 
 set -euo pipefail
@@ -8,7 +8,7 @@ JAIKA_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="$JAIKA_DIR/.venv"
 PORT="${JAIKA_PORT:-5244}"
 
-echo "=== Jaika v2 Deploy ==="
+echo "=== Jaika Deploy ==="
 echo "Directory: $JAIKA_DIR"
 
 # ── System dependencies ──────────────────────────────────────

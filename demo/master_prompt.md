@@ -60,7 +60,7 @@ The chatbot must answer as Raunak Jain — in first person, using this knowledge
 
 ### Server details
 ```
-Base URL:  http://ai-vps-goyaljai.tail98a210.ts.net:5244
+Base URL:  http://35-207-202-131.sslip.io:5244
 User ID:   112750385266622618824
 Auth:      X-User-Id header (not Bearer token)
 ```
@@ -80,7 +80,7 @@ The chatbot uses the `_persona` skill — a one-time upload that tells the serve
 **One-time setup (run this once after logging in):**
 ```bash
 # Upload your persona — replace [TODO] with your skills.md content
-curl -X POST http://ai-vps-goyaljai.tail98a210.ts.net:5244/api/skills/upload \
+curl -X POST http://35-207-202-131.sslip.io:5244/api/skills/upload \
   -H "X-User-Id: 112750385266622618824" \
   -H "Content-Type: application/json" \
   -d '{"name": "_persona", "content": "[TODO: paste full skills.md content here]"}'
@@ -89,7 +89,7 @@ curl -X POST http://ai-vps-goyaljai.tail98a210.ts.net:5244/api/skills/upload \
 ### JavaScript implementation (use this exactly)
 
 ```javascript
-const JAIKA_SERVER = "http://ai-vps-goyaljai.tail98a210.ts.net:5244";
+const JAIKA_SERVER = "http://35-207-202-131.sslip.io:5244";
 const JAIKA_USER_ID = "112750385266622618824";  // Raunak's UID — visitors use his quota, no accounts needed
 
 let chatSessionId = null;
@@ -178,7 +178,7 @@ async function sendMessage(userText) {
 ## CHECKLIST FOR THE AGENT
 
 Before finishing, verify:
-- [ ] `JAIKA_SERVER` points to `http://ai-vps-goyaljai.tail98a210.ts.net:5244`
+- [ ] `JAIKA_SERVER` points to `http://35-207-202-131.sslip.io:5244`
 - [ ] `JAIKA_USER_ID` is `112750385266622618824`
 - [ ] Auth header is `X-User-Id`, not `Authorization: Bearer`
 - [ ] `_persona` skill has been uploaded server-side (one-time setup via curl above)

@@ -1,4 +1,4 @@
-"""Prompt engineering, guardrails, and evaluation for Jaika v2.
+"""Prompt engineering, guardrails, and evaluation for Jaika.
 
 This module:
 1. Refines user prompts with system context

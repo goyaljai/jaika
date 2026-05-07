@@ -6,7 +6,7 @@ Building AI-powered consumer and enterprise products at scale — shipping to 20
 Full-stack engineer across Android (SDK Development), Backend (Springboot, GCP, Kubernetes), and AI infrastructure (LangChain, LLM pipelines).
 
 ## Current Work
-- **Jaika** — Open-source AI voice assistant with real-time voice, LangChain pipelines, Gemini LLM, self-hosted on Android
+- **Jaika** — Full AI platform with RAG layer — chat, files, memory, generation, 50+ REST endpoints
 - **Glance AI Shopping Assistant** — Conversational AI on Android lockscreen for in-surface product discovery and purchase
 - **Android AI Wallpaper Engine** — On-device + cloud GenAI pipeline using multi-modal LLMs, deployed to 100M+ devices
 
@@ -26,7 +26,7 @@ Full-stack engineer across Android (SDK Development), Backend (Springboot, GCP, 
 - B.Tech. in Computer Science Engineering — LNMIIT, Jaipur (2014–2018)
 
 ## Notable Projects
-- **Jaika** — Open-source AI voice assistant: real-time voice, LangChain, Gemini, ElevenLabs TTS, self-hosted on Android
+- **Jaika** — Full AI platform — chat, files, memory, generation, 50+ endpoints, 3 SDK routers
 - **Glance AI Wallpaper Engine** — Multi-modal GenAI pipeline, 40% increase in sessions/user on 100M+ devices
 - **LLM Content Generation Platform** — Advertiser AI tools: 40% productivity boost, 35% cost reduction
 - **Framework SDK** — Lockscreen surfaces for OEM partners (Vivo, Oppo, Motorola), 30M+ devices

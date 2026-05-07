@@ -450,7 +450,7 @@ a:hover { color: var(--accent-hover); }
     <div class="lp-nav-pills" style="display:flex;align-items:center;gap:18px">
       <span style="font-size:14px;color:var(--text2)">30+ endpoints</span>
       <span style="font-size:14px;color:var(--text2)">3 SDK routers</span>
-      <span style="font-size:14px;color:var(--text2)">Self-hosted</span>
+      <span style="font-size:14px;color:var(--text2)">Open-source</span>
       <a href="/privacy-policy" style="font-size:14px;color:var(--text2);text-decoration:none;flex-shrink:0">Privacy Policy</a>
     </div>
   </div>
@@ -678,8 +678,8 @@ resp = client.chat.completions.create(
 <div class="hosting-guide-overlay" id="hosting-guide-overlay" onclick="if(event.target===this)toggleHostingGuide()">
   <div class="hosting-guide-modal">
     <button class="close-guide" onclick="toggleHostingGuide()">&times;</button>
-    <h2>Jaika v2 Hosting Guide</h2>
-    <p class="hg-subtitle">Deploy Jaika v2 on a fresh Ubuntu/Debian server. Powered by Google's AI APIs with OAuth authentication.</p>
+    <h2>Jaika Hosting Guide</h2>
+    <p class="hg-subtitle">Deploy Jaika on a fresh Ubuntu/Debian server. Powered by Google's AI APIs with OAuth authentication.</p>
 
     <h3>1. Install system dependencies</h3>
     <pre>sudo apt update
@@ -688,13 +688,13 @@ sudo apt install -y python3 python3-pip python3-venv curl git \
 
 python3 --version  # Should be 3.11+</pre>
 
-    <h3>2. Clone/copy Jaika v2</h3>
-    <pre>sudo mkdir -p /opt/jaika-v2
-sudo git clone https://github.com/goyaljai/jaika.git /opt/jaika-v2
-# Or copy: sudo cp -r /path/to/jaika-v2/* /opt/jaika-v2/</pre>
+    <h3>2. Clone/copy Jaika</h3>
+    <pre>sudo mkdir -p /opt/jaika
+sudo git clone https://github.com/goyaljai/jaika.git /opt/jaika
+# Or copy: sudo cp -r /path/to/jaika/* /opt/jaika/</pre>
 
     <h3>3. Python venv + dependencies</h3>
-    <pre>cd /opt/jaika-v2
+    <pre>cd /opt/jaika
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
@@ -704,19 +704,19 @@ pip install -r requirements.txt
     <p>For Android chroot: <code>unset ANDROID_DATA ANDROID_ROOT</code> before pip commands.</p>
 
     <h3>4. Create data directories + config</h3>
-    <pre>mkdir -p /opt/jaika-v2/data/{users,skills}
-mkdir -p /opt/jaika-v2/static
+    <pre>mkdir -p /opt/jaika/data/{users,skills}
+mkdir -p /opt/jaika/static
 mkdir -p /var/log/server
 
 # Admin emails (goyaljai.y14@gmail.com is always hardcoded admin)
-echo '["your-admin@gmail.com"]' &gt; /opt/jaika-v2/data/admins.json
-echo '[]' &gt; /opt/jaika-v2/data/pro_users.json
+echo '["your-admin@gmail.com"]' &gt; /opt/jaika/data/admins.json
+echo '[]' &gt; /opt/jaika/data/pro_users.json
 
 # Generate secret key
 SK=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 
-cat &gt; /opt/jaika-v2/.env &lt;&lt;EOF
-JAIKA_DATA_DIR=/opt/jaika-v2/data
+cat &gt; /opt/jaika/.env &lt;&lt;EOF
+JAIKA_DATA_DIR=/opt/jaika/data
 JAIKA_HOST=0.0.0.0
 JAIKA_PORT=5244
 SECRET_KEY=$SK
@@ -724,8 +724,8 @@ EOF</pre>
 
     <h3>5. Auth setup — OAuth credentials</h3>
     <pre># Add OAuth credentials to .env:
-echo "GOOGLE_CLIENT_ID=YOUR_CLIENT_ID" &gt;&gt; /opt/jaika-v2/.env
-echo "GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET" &gt;&gt; /opt/jaika-v2/.env
+echo "GOOGLE_CLIENT_ID=YOUR_CLIENT_ID" &gt;&gt; /opt/jaika/.env
+echo "GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET" &gt;&gt; /opt/jaika/.env
 
 # First user login: visit https://YOUR-DOMAIN/ and sign in
 # The OAuth flow stores tokens per-user in data/users/&lt;user_id&gt;/token.json</pre>
@@ -735,11 +735,11 @@ echo "GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET" &gt;&gt; /opt/jaika-v2/.env
 
 cat &gt; /etc/supervisor/conf.d/jaika.conf &lt;&lt;'EOF'
 [program:jaika]
-command=/opt/jaika-v2/.venv/bin/gunicorn \
+command=/opt/jaika/.venv/bin/gunicorn \
   --bind 0.0.0.0:5244 --workers 2 --threads 4 \
   --timeout 180 --access-logfile - app:app
-directory=/opt/jaika-v2
-environment=HOME="/root",PATH="/opt/jaika-v2/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+directory=/opt/jaika
+environment=HOME="/root",PATH="/opt/jaika/.venv/bin:/usr/local/bin:/usr/bin:/bin"
 autostart=true
 autorestart=true
 stdout_logfile=/var/log/server/jaika-out.log
@@ -760,7 +760,7 @@ tailscale serve status</pre>
     <h3>8. Cron — cleanup old files</h3>
     <pre>crontab -e
 # Add:
-0 3 * * * find /opt/jaika-v2/data/users/*/uploads/ /opt/jaika-v2/data/users/*/outputs/ -type f -mmin +120 -delete 2&gt;/dev/null</pre>
+0 3 * * * find /opt/jaika/data/users/*/uploads/ /opt/jaika/data/users/*/outputs/ -type f -mmin +120 -delete 2&gt;/dev/null</pre>
 
     <h3>9. Verify</h3>
     <pre>supervisorctl status
@@ -780,7 +780,7 @@ tail -f /var/log/server/jaika-out.log
 tail -f /var/log/server/jaika-err.log
 
 # Update
-cd /opt/jaika-v2 &amp;&amp; git pull
+cd /opt/jaika &amp;&amp; git pull
 source .venv/bin/activate &amp;&amp; pip install -r requirements.txt
 supervisorctl restart jaika
 

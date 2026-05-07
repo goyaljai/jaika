@@ -1,4 +1,4 @@
-"""Jaika v2 — Main Flask application."""
+"""Jaika — Main Flask application."""
 
 import base64
 import datetime

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end test suite for Jaika v2 API.
+"""End-to-end test suite for Jaika API.
 
 Run with: python3 test_suite.py
 Requires the server to be running at http://localhost:5244
