@@ -1,4 +1,4 @@
-# Jaika v2 — High-Level Flow Diagram Prompts
+# Jaika — High-Level Flow Diagram Prompts
 
 > All 5 prompts assume a **vector database** (not JSON/SQLite) for session/message storage.
 > Each prompt is designed to generate a detailed HLD diagram in tools like Mermaid, Lucidchart, or draw.io.
