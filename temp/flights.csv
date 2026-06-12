@@ -1,0 +1,7 @@
+Scrape_Timestamp,Days_to_Departure,Departure_Date,Day_of_Week,Departure_Time,Arrival_Time,Source_City,Destination_City,Airline,Flight_Number,Total_Duration_Mins,Number_of_Stops,CO2_Emissions_Grams,Price_Level,Flight_Category,Price_INR
+2026-06-12 14:41:18,1,2026-06-13,Saturday,7:00 AM,9:10 AM,BOM,DEL,IndiGo,,130,0,89000,High,Best,15102
+2026-06-12 14:41:18,1,2026-06-13,Saturday,6:35 PM,11:00 PM,BOM,DEL,IndiGo,AG 131,265,1,131000,High,Cheapest,14193
+2026-06-12 14:42:15,1,2026-06-13,Saturday,8:35 AM,2:45 PM,CCU,BOM,IndiGo,AA 177,370,1,177000,High,Best,22777
+2026-06-12 14:42:15,1,2026-06-13,Saturday,8:35 AM,2:45 PM,CCU,BOM,IndiGo,AA 177,370,1,177000,High,Cheapest,22777
+2026-06-12 14:43:17,1,2026-06-13,Saturday,10:25 AM,7:15 PM,JAI,BOM,IndiGo,DR 107,530,1,107000,High,Best,9507
+2026-06-12 14:43:17,1,2026-06-13,Saturday,10:25 AM,7:15 PM,JAI,BOM,IndiGo,DR 107,530,1,107000,High,Cheapest,9507
