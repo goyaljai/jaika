@@ -8,6 +8,7 @@ Extracts BOTH the "Best" flight and the "Cheapest" flight.
 """
 
 import csv
+import sys
 import os
 import re
 import random
@@ -200,14 +201,8 @@ def extract_flight_details(card):
     except Exception:
         pass
 
-    # Extract flight number
+    # Extract flight number (flight numbers are not shown on search results cards)
     flight_number = ""
-    try:
-        fn_match = re.search(r'([A-Z0-9]{2})\s*(\d{2,5})', card_text)
-        if fn_match:
-            flight_number = f"{fn_match.group(1)} {fn_match.group(2)}"
-    except Exception:
-        pass
 
     # Determine if overnight
     is_overnight = False
@@ -457,6 +452,11 @@ def main():
     success_rate = (success_count / (success_count + fail_count) * 100) if (success_count + fail_count) > 0 else 0.0
     print(f"   📊 Success rate: {success_rate:.1f}%")
     print(f"   📁 Data saved to: {FILE_PATH}")
+    
+    # Exit with non-zero status if success rate is dangerously low to trigger self-repair
+    if success_rate < 70.0 and (success_count + fail_count) > 10:
+        print(f"⚠️ Success rate is too low ({success_rate:.1f}%). Exiting with error to trigger self-repair.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
