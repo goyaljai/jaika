@@ -815,3 +815,5 @@ Scrape_Timestamp,Days_to_Departure,Departure_Date,Day_of_Week,Departure_Time,Arr
 2026-06-13 14:01:52,30,2026-07-13,Monday,8:50 AM,9:40 PM,VTZ,LKO,"Air India Express, Air India",EL 228,770,2,228000,,Cheapest,
 2026-06-13 14:02:07,60,2026-08-12,Wednesday,8:50 AM,7:45 PM,VTZ,LKO,"Air India Express, Air India",EL 231,655,2,231000,,Best,
 2026-06-13 14:02:07,60,2026-08-12,Wednesday,8:50 AM,7:45 PM,VTZ,LKO,"Air India Express, Air India",EL 231,655,2,231000,,Cheapest,
+2026-06-14 06:16:47,1,2026-06-15,Monday,4:50 PM,9:20 PM,JAI,BOM,IndiGo,DR 97,270,1,97000,High,Best,9798
+2026-06-14 06:16:47,1,2026-06-15,Monday,4:50 PM,9:20 PM,JAI,BOM,IndiGo,DR 97,270,1,97000,High,Cheapest,9798
