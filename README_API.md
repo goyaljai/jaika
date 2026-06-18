@@ -202,5 +202,5 @@ Tests use a 1s delay between LLM calls. Rate limits are handled transparently by
 | `DATA_DIR` | Storage directory | `./data` |
 | `PORT` | Server port | `5244` |
 | `ELEVENLABS_API_KEY` | ElevenLabs TTS key | Optional |
-| `ELEVENLABS_VOICE_ID` | Cloned voice ID | Optional |
+| `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID. Default deploy uses `JBFqnCBsd6RMkjVDRZzb`; professional/library voices require a paid ElevenLabs plan. | Optional |
 | `SERP_API_KEY` | SerpAPI key for web grounding (Pro) | Optional |

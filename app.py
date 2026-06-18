@@ -1316,7 +1316,7 @@ def tts():
         return jsonify({"error": "text required"}), 400
 
     keys = [
-        (os.environ.get("ELEVENLABS_API_KEY", ""), os.environ.get("ELEVENLABS_VOICE_ID", "WVxGH3aP7KdKSqbyJaZG")),
+        (os.environ.get("ELEVENLABS_API_KEY", ""), os.environ.get("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")),
         (os.environ.get("ELEVENLABS_API_KEY_2", ""), os.environ.get("ELEVENLABS_VOICE_ID_2", "Es84KBAAKQWbHox2jI9W")),
     ]
     payload = json.dumps({

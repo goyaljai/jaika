@@ -37,5 +37,5 @@ Required/optional runtime keys:
 
 - Antigravity OAuth uses the built-in public installed-app client ID; keep the matching `ANTIGRAVITY_OAUTH_CLIENT_SECRET` only in `/opt/jaika/.env`.
 - `SERP_API_KEY` enables web grounding.
-- `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` enable ElevenLabs TTS.
+- `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` enable ElevenLabs TTS. Use `JBFqnCBsd6RMkjVDRZzb` on free-tier keys; professional/library voices require a paid ElevenLabs plan.
 - `GEMINI_API_KEY_1..3` enable Gemini API fallback TTS/video paths and are rotated on quota errors.

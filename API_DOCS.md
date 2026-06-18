@@ -160,7 +160,7 @@ All features are available to every authenticated user. Only admin endpoints are
 - **Model names sent**: Exact Gemini model IDs, e.g. `gemini-3.5-flash-low`, `gemini-3.5-flash-low`
 - **Model fallback**: On 404/429/503, immediately skip to next model (no waiting). Only the last model in the chain retries up to 3× with exponential backoff. This prevents long timeouts when preview models are rate-limited.
 - **Fallback chain**: `gemini-3.5-flash-low → gemini-3-flash-agent → gemini-3.5-flash-extra-low → gemini-3.1-flash-lite`
-- **TTS**: Uses **ElevenLabs** (`eleven_multilingual_v2`) via server-side proxy at `/api/tts`. Two API keys configured (`ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY_2`) with automatic fallback on any error. Voice ID: `ibbx9zDYGvLgtYzRbqqG`. Returns `audio/mpeg`.
+- **TTS**: Uses **ElevenLabs** (`eleven_flash_v2_5`) via server-side proxy at `/api/tts`. Two API keys configured (`ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY_2`) with automatic fallback on any error. Default voice ID: `JBFqnCBsd6RMkjVDRZzb` because it is API-allowed on the configured free-tier key. Professional/library voices require a paid ElevenLabs plan. Returns `audio/mpeg` when ElevenLabs succeeds and `audio/wav` from Gemini fallback.
 
 ### Output Sanitization Pipeline
 
