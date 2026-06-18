@@ -604,17 +604,17 @@ resp = client.chat.completions.create(
           <div style="font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Fallback Chain</div>
           <div class="admin-email-list" id="models-fallback-list"></div>
           <div class="admin-add-row">
-            <input type="text" id="models-fallback-input" placeholder="gemini-2.5-pro" style="font-family:monospace;font-size:12px">
+            <input type="text" id="models-fallback-input" placeholder="gemini-3.5-flash-low" style="font-family:monospace;font-size:12px">
             <button onclick="addFallbackModel()">Add</button>
           </div>
           <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Thinking Model</div>
           <div class="admin-add-row">
-            <input type="text" id="models-thinking-input" placeholder="gemini-2.5-flash" style="font-family:monospace;font-size:12px">
+            <input type="text" id="models-thinking-input" placeholder="gemini-3.1-pro-high" style="font-family:monospace;font-size:12px">
             <button onclick="saveThinkingModel()">Save</button>
           </div>
           <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">TTS Model (cloudcode)</div>
           <div class="admin-add-row">
-            <input type="text" id="models-tts-input" placeholder="gemini-2.5-flash" style="font-family:monospace;font-size:12px">
+            <input type="text" id="models-tts-input" placeholder="gemini-3.1-flash-lite" style="font-family:monospace;font-size:12px">
             <button onclick="saveTtsModel()">Save</button>
           </div>
           <div style="font-size:11px;color:var(--text2);margin:8px 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">TTS Models (GenAI)</div>
@@ -1028,7 +1028,7 @@ function showPublicPage(user) {
   html += ep('POST', '/api/prompt (stream)', 'Streaming via SSE', 'FREE',
     '<div class="ep-body-desc">Set <code>stream: true</code> to receive Server-Sent Events. Save the returned <code>session_id</code> to continue the conversation.</div>' +
     codeBlock('curl -N -X POST ' + S + '/api/prompt \\\n  -H "' + H + '" -H "' + C + '" \\\n  -d \'{"prompt": "Explain quantum computing", "stream": true}\'') +
-    responseBlock('data: {"model":"gemini-2.5-flash","type":"start"}\ndata: {"text":"Quantum computing uses..."}\ndata: {"text":" qubits instead of bits"}\ndata: {"type":"done"}'));
+    responseBlock('data: {"model":"gemini-3.5-flash-low","type":"start"}\ndata: {"text":"Quantum computing uses..."}\ndata: {"text":" qubits instead of bits"}\ndata: {"type":"done"}'));
 
   html += ep('POST', '/api/prompt (thinking)', 'Extended reasoning mode', 'PRO',
     '<div class="ep-body-desc">Uses Jaika Open Models with deep reasoning. Best for math, logic, and complex analysis.</div>' +
@@ -1165,17 +1165,21 @@ function showPublicPage(user) {
   // ── COMPAT ROUTERS
   html += sec('compat', '🔌', 'Drop-in Compatibility', 'Use existing OpenAI, Anthropic, or Gemini SDKs — just change the base URL.');
 
+  html += ep('POST', '/v1/responses', 'OpenAI Responses-compatible', 'FREE',
+    '<div class="ep-body-desc">Auth: <code>Authorization: Bearer YOUR_UID</code>. Supports <code>input</code>, <code>instructions</code>, <code>previous_response_id</code>, <code>store:false</code>, <code>stream:true</code>, and maps <code>web_search</code> tools to Jaika grounding.</div>' +
+    codeBlock('# curl\ncurl -X POST ' + S + '/v1/responses \\\n  -H "Authorization: Bearer ' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"model":"gpt-4o","instructions":"You are concise.","input":"Hello"}\'\n\n# Python\nimport openai\nclient = openai.OpenAI(base_url="' + S + '/v1", api_key="' + U + '")\nresp = client.responses.create(\n    model="gpt-4o",\n    instructions="You are concise.",\n    input="Hello"\n)\nprint(resp.output_text)'));
+
   html += ep('POST', '/v1/chat/completions', 'OpenAI-compatible', 'FREE',
     '<div class="ep-body-desc">Auth: <code>Authorization: Bearer YOUR_UID</code>. GPT model names are mapped to Jaika Open Models. Supports streaming.</div>' +
-    codeBlock('# curl\ncurl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"Hello"}]}\'\n\n# Python (drop-in replacement)\nimport openai\nclient = openai.OpenAI(base_url="' + S + '/v1", api_key="' + U + '")\nresp = client.chat.completions.create(\n    model="gemini-2.5-pro",\n    messages=[{"role":"user","content":"Hello"}]\n)\nprint(resp.choices[0].message.content)'));
+    codeBlock('# curl\ncurl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"model":"gemini-3.5-flash-low","messages":[{"role":"user","content":"Hello"}]}\'\n\n# Python (drop-in replacement)\nimport openai\nclient = openai.OpenAI(base_url="' + S + '/v1", api_key="' + U + '")\nresp = client.chat.completions.create(\n    model="gemini-3.5-flash-low",\n    messages=[{"role":"user","content":"Hello"}]\n)\nprint(resp.choices[0].message.content)'));
 
   html += ep('POST', '/v1/messages', 'Anthropic-compatible', 'FREE',
-    '<div class="ep-body-desc">Auth: <code>x-api-key: YOUR_UID</code>. Claude model names → Jaika Open Models. claude-opus-4 → gemini-2.5-pro.</div>' +
+    '<div class="ep-body-desc">Auth: <code>x-api-key: YOUR_UID</code>. Claude model names map to Antigravity Claude/Gemini models.</div>' +
     codeBlock('import anthropic\nclient = anthropic.Anthropic(base_url="' + S + '", api_key="' + U + '")\nmsg = client.messages.create(\n    model="claude-opus-4", max_tokens=1024,\n    messages=[{"role":"user","content":"Hello"}]\n)\nprint(msg.content[0].text)'));
 
   html += ep('POST', '/v1beta/models/:model:generateContent', 'Jaika-Native', 'FREE',
     '<div class="ep-body-desc">Auth: <code>?key=YOUR_UID</code> query param. Identical to Google Gemini API format.</div>' +
-    codeBlock('curl -X POST "' + S + '/v1beta/models/gemini-2.5-flash:generateContent?key=' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"contents":[{"role":"user","parts":[{"text":"Hello"}]}]}\''));
+    codeBlock('curl -X POST "' + S + '/v1beta/models/gemini-3.5-flash-low:generateContent?key=' + U + '" \\\n  -H "' + C + '" \\\n  -d \'{"contents":[{"role":"user","parts":[{"text":"Hello"}]}]}\''));
 
   // ── USER
   html += sec('user', '👤', 'User & Auth', '');
@@ -1680,23 +1684,28 @@ function renderApiDocs() {
       {method:'GET', path:'/v1/models', auth:'user',
        desc:'OpenAI-compatible models list. Use your user_id as the API key.',
        req:null,
-       res:'{\n  "object": "list",\n  "data": [\n    {"id": "gemini-3-flash-preview", "object": "model"},\n    {"id": "gpt-4o", "object": "model"}\n  ]\n}',
+       res:'{\n  "object": "list",\n  "data": [\n    {"id": "gemini-3.5-flash-low", "object": "model"},\n    {"id": "gemini-3.1-pro-high", "object": "model"}\n  ]\n}',
        curl:'curl ' + S + '/v1/models \\\n  -H "Authorization: Bearer ' + U + '"'},
+      {method:'POST', path:'/v1/responses', auth:'user',
+       desc:'OpenAI Responses API. Supports input, instructions, previous_response_id, store:false, stream:true, and web_search → grounding.',
+       req:'{\n  "model": "gpt-4o",\n  "instructions": "You are concise.",\n  "input": "Hello",\n  "stream": false\n}',
+       res:'{\n  "id": "resp_...",\n  "object": "response",\n  "output_text": "Hi there!",\n  "output": [{"type": "message", "role": "assistant"}]\n}',
+       curl:'curl -X POST ' + S + '/v1/responses \\\n  -H "Authorization: Bearer ' + U + '" ' + J + ' \\\n  -d \'{"model": "gpt-4o", "instructions": "You are concise.", "input": "Hello"}\''},
       {method:'POST', path:'/v1/chat/completions', auth:'user',
        desc:'OpenAI Chat Completions. GPT model names auto-mapped → Gemini. Supports stream:true.',
-       req:'{\n  "model": "gemini-3-flash-preview",\n  "messages": [\n    {"role": "user", "content": "Hello"}\n  ],\n  "stream": false\n}',
+       req:'{\n  "model": "gemini-3.5-flash-low",\n  "messages": [\n    {"role": "user", "content": "Hello"}\n  ],\n  "stream": false\n}',
        res:'{\n  "choices": [{\n    "message": {"role": "assistant", "content": "Hi there!"},\n    "finish_reason": "stop"\n  }]\n}',
-       curl:'curl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + J + ' \\\n  -d \'{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}\'\n\n# Model map: gpt-4o→gemini-3-flash-preview, gpt-4o-mini→gemini-3.1-flash-lite-preview'},
+       curl:'curl -X POST ' + S + '/v1/chat/completions \\\n  -H "Authorization: Bearer ' + U + '" ' + J + ' \\\n  -d \'{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]}\'\n\n# Model map: gpt-4o→gemini-3.5-flash-low, gpt-4o-mini→gemini-3.5-flash-extra-low'},
       {method:'POST', path:'/v1/messages', auth:'user',
        desc:'Anthropic Messages API. Use x-api-key header. Claude model names auto-mapped → Gemini.',
        req:'{\n  "model": "claude-opus-4",\n  "messages": [{"role": "user", "content": "Hello"}],\n  "max_tokens": 1024\n}',
-       res:'{\n  "content": [{"type": "text", "text": "Hi there!"}],\n  "model": "gemini-3-flash-preview"\n}',
-       curl:'curl -X POST ' + S + '/v1/messages \\\n  -H "x-api-key: ' + U + '" ' + J + ' \\\n  -d \'{"model": "claude-opus-4", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 1024}\'\n\n# Model map: claude-opus-4→gemini-3-flash-preview, claude-sonnet-4→gemini-3.1-flash-lite-preview'},
+       res:'{\n  "content": [{"type": "text", "text": "Hi there!"}],\n  "model": "claude-opus-4-6-thinking"\n}',
+       curl:'curl -X POST ' + S + '/v1/messages \\\n  -H "x-api-key: ' + U + '" ' + J + ' \\\n  -d \'{"model": "claude-opus-4", "messages": [{"role": "user", "content": "Hello"}], "max_tokens": 1024}\'\n\n# Model map: claude-opus-4→claude-opus-4-6-thinking, claude-sonnet-4→claude-sonnet-4-6'},
       {method:'POST', path:'/v1beta/models/<model>:generateContent', auth:'user',
        desc:'Gemini native format. Use ?key= or Bearer token.',
        req:'{\n  "contents": [{\n    "role": "user",\n    "parts": [{"text": "Hello"}]\n  }]\n}',
        res:'{\n  "candidates": [{\n    "content": {"parts": [{"text": "Hi there!"}]}\n  }]\n}',
-       curl:'curl -X POST "' + S + '/v1beta/models/gemini-3-flash-preview:generateContent?key=' + U + '" \\\n  ' + J + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}\''},
+       curl:'curl -X POST "' + S + '/v1beta/models/gemini-3.5-flash-low:generateContent?key=' + U + '" \\\n  ' + J + ' \\\n  -d \'{"contents": [{"role": "user", "parts": [{"text": "Hello"}]}]}\''},
     ],
     admin: [
       {method:'GET', path:'/api/admin/vitals', auth:'admin',
@@ -1732,18 +1741,18 @@ function renderApiDocs() {
       {method:'GET', path:'/api/admin/models', auth:'admin',
        desc:'Get full model config: fallback chain, thinking model, TTS models, Veo models.',
        req:null,
-       res:'{\n  "fallback": ["gemini-3-flash-preview", "gemini-2.5-flash"],\n  "thinking": "gemini-3-flash-preview",\n  "tts": "gemini-2.5-flash",\n  "tts_models": ["gemini-2.5-flash-preview-tts"],\n  "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]\n}',
+       res:'{\n  "fallback": ["gemini-3.5-flash-low", "gemini-3-flash-agent", "gemini-3.5-flash-extra-low", "gemini-3.1-flash-lite"],\n  "thinking": "gemini-3.1-pro-high",\n  "tts": "gemini-3.1-flash-lite",\n  "tts_models": ["gemini-2.5-flash-preview-tts"],\n  "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]\n}',
        curl:'curl ' + S + '/api/admin/models ' + H},
       {method:'POST', path:'/api/admin/models', auth:'admin',
        desc:'Partial-update model config. Only provided fields are changed. Persisted to models.json. Takes effect within 60s.',
-       req:'{\n  "fallback": ["gemini-3-flash-preview", "gemini-2.5-flash"],\n  "thinking": "gemini-3-flash-preview",\n  "tts_models": ["gemini-2.5-flash-preview-tts"],\n  "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]\n}',
+       req:'{\n  "fallback": ["gemini-3.5-flash-low", "gemini-3.1-flash-lite"],\n  "thinking": "gemini-3.1-pro-high",\n  "tts_models": ["gemini-2.5-flash-preview-tts"],\n  "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]\n}',
        res:'{\n  "fallback": [...],\n  "tts_models": [...],\n  "veo_models": [...]\n}',
        curl:'curl -X POST ' + S + '/api/admin/models \\\n  ' + H + ' ' + J + ' \\\n  -d \'{"tts_models": ["gemini-2.5-flash-preview-tts"], "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"]}\''},
       {method:'DELETE', path:'/api/admin/models/fallback/<model>', auth:'admin',
        desc:'Remove a model from the fallback chain.',
        req:null,
-       res:'{\n  "fallback": ["gemini-2.5-flash"]\n}',
-       curl:'curl -X DELETE ' + S + '/api/admin/models/fallback/gemini-2.5-pro ' + H},
+       res:'{\n  "fallback": ["gemini-3.1-flash-lite"]\n}',
+       curl:'curl -X DELETE ' + S + '/api/admin/models/fallback/gemini-3.5-flash-low ' + H},
       {method:'DELETE', path:'/api/admin/models/tts_models/<model>', auth:'admin',
        desc:'Remove a model from the GenAI TTS models list. Cannot remove last entry.',
        req:null,

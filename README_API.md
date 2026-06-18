@@ -5,7 +5,7 @@
 Jaika is a Flask backend that wraps the Google Gemini API (via `cloudcode-pa.googleapis.com/v1internal`) and exposes multiple interfaces:
 
 - **Native Jaika API** — `/api/prompt`, `/api/upload`, `/api/memory`, etc.
-- **OpenAI-compatible** — `/v1/chat/completions`, `/v1/models`
+- **OpenAI-compatible** — `/v1/responses`, `/v1/chat/completions`, `/v1/models`
 - **Anthropic-compatible** — `/v1/messages`
 - **Gemini-native** — `/v1beta/models/:generateContent`
 
@@ -127,7 +127,8 @@ MODEL_THINKING = "gemini-3.5-flash-low"
 | `POST /api/fetch` (no prompt) | 0 | Raw fetch only, no LLM |
 | `POST /api/generate/file` | 1 | File generation via generate |
 | `POST /api/generate/image` | 1–2 | Native image; SVG fallback if failed |
-| `POST /v1/chat/completions` | 1–2 | OpenAI compat → generate/stream |
+| `POST /v1/responses` | 1–2 | OpenAI Responses compat → generate/stream |
+| `POST /v1/chat/completions` | 1–2 | OpenAI Chat Completions compat → generate/stream |
 | `POST /v1/messages` | 1–2 | Anthropic compat → generate |
 | `POST /v1beta/.../generateContent` | 1–2 | Gemini native compat → generate |
 

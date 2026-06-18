@@ -638,6 +638,11 @@ curl -X POST $SERVER/v1/chat/completions \
   -H "Authorization: Bearer $UID" -H "Content-Type: application/json" \
   -d '{"model": "gemini-3.5-flash-low", "messages": [{"role": "user", "content": "Hello"}]}'
 
+# Responses API
+curl -X POST $SERVER/v1/responses \
+  -H "Authorization: Bearer $UID" -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o", "instructions": "You are concise.", "input": "Hello"}'
+
 # Streaming
 curl -N -X POST $SERVER/v1/chat/completions \
   -H "Authorization: Bearer $UID" -H "Content-Type: application/json" \
@@ -654,6 +659,23 @@ resp = client.chat.completions.create(
 )
 print(resp.choices[0].message.content)
 ```
+
+**Python Responses API:**
+```python
+import openai
+client = openai.OpenAI(base_url="https://187-127-151-46.sslip.io:5244/v1", api_key="YOUR_UID")
+resp = client.responses.create(
+    model="gpt-4o",
+    instructions="You are concise.",
+    input="Hello"
+)
+print(resp.output_text)
+```
+
+Responses compatibility supports `input` as a string or message/item array,
+`instructions`, `previous_response_id`, `store:false`, `stream:true`, and maps
+`tools:[{"type":"web_search"}]` to Jaika grounding. Unsupported OpenAI-hosted
+tools are accepted but not executed by Jaika.
 
 ### Anthropic-Compatible (`/v1/messages`)
 

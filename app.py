@@ -1928,7 +1928,7 @@ def api_docs():
                      "session_id": "string (optional — creates new session if omitted)",
                      "stream": "bool (default false)",
                      "file_ids": "array of file_ids from /api/upload (optional)",
-                     "thinking": "bool (default false) — extended reasoning via gemini-2.5-pro",
+                     "thinking": "bool (default false) — extended reasoning via gemini-3.1-pro-high",
                      "thinking_budget": "int (default 8192) — thinking token budget",
                      "grounding": "bool (default false) — Google Search grounding",
                      "response_format": "'json' or null — structured JSON output",
@@ -2057,6 +2057,9 @@ def api_docs():
                     {"method": "POST", "path": "/v1/chat/completions",
                      "description": "Chat completions. Supports stream:true. Maps common names to current Antigravity models including Gemini 3.5 Flash, Gemini 3.1 Pro, Claude 4.6, and GPT-OSS 120B.",
                      "body": {"model": "string", "messages": "array", "stream": "bool"}},
+                    {"method": "POST", "path": "/v1/responses",
+                     "description": "OpenAI Responses-compatible API. Supports input string/message items, instructions, previous_response_id, store:false, stream:true, and web_search mapped to Jaika grounding.",
+                     "body": {"model": "string", "input": "string|array", "instructions": "string", "previous_response_id": "string", "stream": "bool", "tools": "array"}},
                 ],
             },
             "compat_anthropic": {

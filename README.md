@@ -218,7 +218,7 @@ See **[README_API.md](README_API.md)** for the full reference.
 
 ## SDK Compatibility
 
-Jaika exposes 3 SDK-compatible routers via `api_compat.py`. Change `base_url` — everything else stays the same.
+Jaika exposes SDK-compatible routers via `api_compat.py`. Change `base_url` — everything else stays the same. New OpenAI integrations should prefer `/v1/responses`; Chat Completions remains supported.
 
 **OpenAI SDK**
 ```python
@@ -231,6 +231,21 @@ resp = client.chat.completions.create(
     model="gemini-3.5-flash-low",
     messages=[{"role": "user", "content": "Hello!"}]
 )
+```
+
+**OpenAI Responses API**
+```python
+from openai import OpenAI
+client = OpenAI(
+    base_url="https://187-127-151-46.sslip.io:5244/v1",
+    api_key="YOUR_USER_ID"
+)
+resp = client.responses.create(
+    model="gpt-4o",
+    instructions="You are concise.",
+    input="Hello!"
+)
+print(resp.output_text)
 ```
 
 **Anthropic SDK**
