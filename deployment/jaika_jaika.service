@@ -1,0 +1,22 @@
+[Unit]
+Description=Jaika Flask application (_jaika)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=jaika
+Group=jaika
+WorkingDirectory=/opt/jaika
+EnvironmentFile=/opt/jaika/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/jaika/.venv/bin/gunicorn --bind 127.0.0.1:5245 --workers 4 --threads 4 --timeout 120 --access-logfile - --error-logfile - app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

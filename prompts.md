@@ -33,7 +33,7 @@ Filler Audio (Perceived Latency Reduction):
 LLM Inference Layer:
 - Client POSTs transcript to /api/prompt (non-streaming for voice)
 - Flask /api/prompt builds system prompt via skills.py build_system_instruction() — checks for _persona.md skill which replaces default prompt entirely
-- Gemini Flash generates response (model fallback chain: gemini-3-flash → gemini-2.5-flash)
+- Gemini Flash generates response (model fallback chain: gemini-3-flash → gemini-3.5-flash-low)
 - Returns JSON {text, session_id}
 
 Text-to-Speech (TTS) Layer:
@@ -145,7 +145,7 @@ Bot Session Token System (/goyaljai page):
 
 Tailscale Network Layer:
 - Server runs inside Ubuntu chroot on Android (PocketServer architecture)
-- Exposed via Tailscale MagicDNS: 35-207-202-131.sslip.io
+- Exposed via Tailscale MagicDNS: 187-127-151-46.sslip.io:5244
 - CORS configured for /api/* → origins: "*" to allow embedded widget calls
 - Gunicorn behind reverse proxy (supervisord-managed)
 
@@ -182,7 +182,7 @@ Image Handling:
 - Images inlined into Gemini messages as Part(inline_data=blob(base64, mime_type))
 - Resized client-side to max 1024px before upload (Canvas API)
 - generate() / stream_generate() accepts images[] param → appended to user message parts
-- Model: gemini-2.0-flash (vision-capable) selected automatically
+- Model: gemini-3.1-flash-lite (vision-capable) selected automatically
 
 PDF Processing:
 - PDF uploaded → stored at uploads path

@@ -30,6 +30,9 @@ Thumbs.db
 logs/
 
 # Secrets / credentials
+.env
+.env.*
+!.env.example
 *.json.tmp
 *.lock
 

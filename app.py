@@ -285,13 +285,12 @@ def slides():
 @app.route("/login")
 def login_shortcut():
     """Shortcut: curl -sL https://server/login | bash"""
-    from auth import _pending_logins, login_script as _script_fn
-    import secrets as _secrets, time as _time
+    from auth import create_pending_login, login_script as _script_fn
     token = request.args.get("token", "")
-    if not token:
-        token = _secrets.token_urlsafe(32)
-    if token not in _pending_logins:
-        _pending_logins[token] = {"status": "pending", "created": _time.time()}
+    try:
+        token = create_pending_login(token or None)
+    except ValueError:
+        return jsonify({"error": "Invalid login token"}), 400
     # Build script directly instead of redirect
     return _script_fn(override_token=token)
 
@@ -1873,7 +1872,7 @@ def api_docs():
     """Full API reference — all endpoints, auth, models, tiers."""
     docs = {
         "version": "2.0",
-        "base_url": "https://your-server",
+        "base_url": "https://187-127-151-46.sslip.io:5244",
         "auth": {
             "description": (
                 "All /api/* endpoints require a user_id via: "
@@ -1890,7 +1889,8 @@ def api_docs():
                  "description": "Begin login flow. Returns {login_token} to poll."},
                 {"method": "POST", "path": "/auth/exchange",
                  "auth": "none",
-                 "body": {"code": "string", "redirect_uri": "string", "login_token": "string"},
+                 "body": {"code": "string", "redirect_uri": "string",
+                          "code_verifier": "string", "login_token": "string"},
                  "description": "Exchange Google OAuth code for tokens. Returns {ok, user_id, email}."},
                 {"method": "GET", "path": "/auth/poll?token=<login_token>",
                  "auth": "none",
@@ -2055,7 +2055,7 @@ def api_docs():
                     {"method": "GET", "path": "/v1/models",
                      "description": "List available models."},
                     {"method": "POST", "path": "/v1/chat/completions",
-                     "description": "Chat completions. Supports stream:true. model is mapped: gpt-4o→gemini-3-flash-preview, gpt-4o-mini→gemini-3.1-flash-lite-preview, gpt-3.5-turbo→gemini-3.1-flash-lite-preview.",
+                     "description": "Chat completions. Supports stream:true. Maps common names to current Antigravity models including Gemini 3.5 Flash, Gemini 3.1 Pro, Claude 4.6, and GPT-OSS 120B.",
                      "body": {"model": "string", "messages": "array", "stream": "bool"}},
                 ],
             },
@@ -2063,7 +2063,7 @@ def api_docs():
                 "description": "Anthropic-compatible API. Use your user_id as the API key (x-api-key: <user_id>).",
                 "endpoints": [
                     {"method": "POST", "path": "/v1/messages",
-                     "description": "Messages API. Supports stream:true. model mapped: claude-opus-4/claude-3-5-sonnet→gemini-3-flash-preview, claude-sonnet-4/claude-3-haiku→gemini-3.1-flash-lite-preview.",
+                     "description": "Messages API. Supports stream:true. Claude aliases map to Antigravity Claude Sonnet 4.6 or Claude Opus 4.6 Thinking.",
                      "body": {"model": "string", "messages": "array", "system": "string", "stream": "bool"}},
                 ],
             },
@@ -2170,26 +2170,31 @@ def api_docs():
             "admin": {"sessions": "unlimited", "storage_mb": "unlimited", "file_gen_per_day": "unlimited", "upload_ttl": "1 hour"},
         },
         "models": [
-            "gemini-3-flash-preview",
-            "gemini-3.1-flash-lite-preview",
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-lite",
+            "gemini-3.5-flash-low",
+            "gemini-3-flash-agent",
+            "gemini-3.5-flash-extra-low",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-pro-low",
+            "gemini-3.1-pro-high",
+            "claude-sonnet-4-6",
+            "claude-opus-4-6-thinking",
+            "gpt-oss-120b-medium",
         ],
         "model_routing": {
             "note": "Fallback chain and thinking/TTS models are admin-configurable via GET/POST /api/admin/models. Defaults shown below.",
             "fallback_order": [
-                "gemini-3-flash-preview",
-                "gemini-3.1-flash-lite-preview",
-                "gemini-2.5-flash",
-                "gemini-2.5-flash-lite",
+                "gemini-3.5-flash-low",
+                "gemini-3-flash-agent",
+                "gemini-3.5-flash-extra-low",
+                "gemini-3.1-flash-lite",
             ],
             "compat_map": {
-                "gpt-4o": "gemini-3-flash-preview", "gpt-4o-mini": "gemini-3.1-flash-lite-preview",
-                "gpt-4": "gemini-3-flash-preview", "gpt-4-turbo": "gemini-3-flash-preview",
-                "gpt-3.5-turbo": "gemini-3.1-flash-lite-preview",
-                "claude-3-opus": "gemini-3-flash-preview", "claude-3-sonnet": "gemini-3.1-flash-lite-preview",
-                "claude-3-haiku": "gemini-3.1-flash-lite-preview", "claude-3-5-sonnet": "gemini-3-flash-preview",
-                "claude-opus-4": "gemini-3-flash-preview", "claude-sonnet-4": "gemini-3.1-flash-lite-preview",
+                "gpt-4o": "gemini-3.5-flash-low", "gpt-4o-mini": "gemini-3.5-flash-extra-low",
+                "gpt-4": "gemini-3.1-pro-high", "gpt-4-turbo": "gemini-3.5-flash-low",
+                "gpt-3.5-turbo": "gemini-3.1-flash-lite", "gpt-oss-120b": "gpt-oss-120b-medium",
+                "claude-3-opus": "claude-opus-4-6-thinking", "claude-3-sonnet": "claude-sonnet-4-6",
+                "claude-3-haiku": "gemini-3.1-flash-lite", "claude-3-5-sonnet": "claude-sonnet-4-6",
+                "claude-opus-4": "claude-opus-4-6-thinking", "claude-sonnet-4": "claude-sonnet-4-6",
             },
         },
         "backend": {

@@ -14,7 +14,7 @@
 [![50+ Endpoints](https://img.shields.io/badge/endpoints-50+-green.svg)](#api-reference)
 [![3 SDK Routers](https://img.shields.io/badge/SDK_routers-3-orange.svg)](#sdk-compatibility)
 
-**[Live Demo](https://35-207-202-131.sslip.io/)** · **[API Docs](README_API.md)** · **[Report Bug](https://github.com/goyaljai/jaika/issues)**
+**[Live Demo](https://187-127-151-46.sslip.io:5244/)** · **[API Docs](README_API.md)** · **[Report Bug](https://github.com/goyaljai/jaika/issues)**
 
 </div>
 
@@ -23,7 +23,7 @@
 ## Sign in with Google — start building in seconds
 
 ```bash
-curl -sL https://35-207-202-131.sslip.io/auth/script | bash
+curl -sL https://187-127-151-46.sslip.io:5244/auth/script | bash
 ```
 
 ---
@@ -32,7 +32,7 @@ curl -sL https://35-207-202-131.sslip.io/auth/script | bash
 
 ```bash
 # Chat with AI
-curl -X POST https://35-207-202-131.sslip.io/api/prompt \
+curl -X POST https://187-127-151-46.sslip.io:5244/api/prompt \
   -H "X-User-Id: YOUR_USER_ID" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Hello!", "stream": false}'
@@ -42,18 +42,18 @@ curl -X POST https://35-207-202-131.sslip.io/api/prompt \
 # Drop-in OpenAI replacement
 import openai
 client = openai.OpenAI(
-    base_url="https://35-207-202-131.sslip.io/v1",
+    base_url="https://187-127-151-46.sslip.io:5244/v1",
     api_key="YOUR_USER_ID"
 )
 resp = client.chat.completions.create(
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash-low",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 ```
 
 ```bash
 # AI file generation
-curl -X POST https://35-207-202-131.sslip.io/api/generate/file \
+curl -X POST https://187-127-151-46.sslip.io:5244/api/generate/file \
   -H "X-User-Id: YOUR_USER_ID" \
   -d '{"prompt": "coffee shop landing page", "type": "html"}'
 ```
@@ -145,17 +145,37 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
 SECRET_KEY=your_random_secret_key
+JAIKA_SERVER_URL=https://187-127-151-46.sslip.io:5244
 
-# Optional — falls back to Gemini TTS if not set
+# Optional — web search grounding
+SERP_API_KEY=your_serpapi_key
+
+# Optional — ElevenLabs TTS
 ELEVENLABS_API_KEY=your_key
 ELEVENLABS_VOICE_ID=your_voice_id
 
-# Optional — enables web search grounding
-SERPAPI_KEY=your_key
+# Optional — Gemini TTS fallback and Veo video
+GEMINI_API_KEY_1=your_gemini_api_key
 ```
+
+Jaika uses Antigravity's public installed-app OAuth client ID by default, with
+PKCE and the `cloud-platform`, profile, `cclog`, and
+`experimentsandconfigs` scopes. Keep the matching client secret in `.env`; do
+not commit it. To override the client ID or set the secret, use:
+
+```env
+ANTIGRAVITY_OAUTH_CLIENT_ID=your_client_id
+ANTIGRAVITY_OAUTH_CLIENT_SECRET=your_client_secret
+```
+
+Security notes:
+
+- Never commit `.env`, API keys, refresh tokens, or the `data/` directory.
+- `.env.example` documents supported variable names using placeholders.
+- If a secret was ever committed, removing the file in a later commit does
+  not erase it from history. Revoke and rotate that secret.
+- Keep the production `.env` readable only by the service account.
 
 ### Run
 
@@ -167,7 +187,7 @@ python3 app.py
 gunicorn --bind 0.0.0.0:5244 --workers 4 --threads 4 --timeout 120 app:app
 ```
 
-Open `https://35-207-202-131.sslip.io/` — sign in with Google and start building.
+Open `https://187-127-151-46.sslip.io:5244/` — sign in with Google and start building.
 
 ---
 
@@ -204,11 +224,11 @@ Jaika exposes 3 SDK-compatible routers via `api_compat.py`. Change `base_url` �
 ```python
 from openai import OpenAI
 client = OpenAI(
-    base_url="https://35-207-202-131.sslip.io/v1",
+    base_url="https://187-127-151-46.sslip.io:5244/v1",
     api_key="YOUR_USER_ID"
 )
 resp = client.chat.completions.create(
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash-low",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 ```
@@ -217,11 +237,11 @@ resp = client.chat.completions.create(
 ```python
 from anthropic import Anthropic
 client = Anthropic(
-    base_url="https://35-207-202-131.sslip.io/v1",
+    base_url="https://187-127-151-46.sslip.io:5244/v1",
     api_key="YOUR_USER_ID"
 )
 msg = client.messages.create(
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash-low",
     max_tokens=1024,
     messages=[{"role": "user", "content": "Hello!"}]
 )
@@ -229,7 +249,7 @@ msg = client.messages.create(
 
 **Gemini-native**
 ```bash
-curl -X POST https://35-207-202-131.sslip.io/v1beta/models/gemini-2.5-flash:generateContent \
+curl -X POST https://187-127-151-46.sslip.io:5244/v1beta/models/gemini-3.5-flash-low:generateContent \
   -H "X-User-Id: YOUR_USER_ID" \
   -d '{"contents": [{"parts": [{"text": "Hello!"}]}]}'
 ```

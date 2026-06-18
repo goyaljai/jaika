@@ -21,27 +21,35 @@ from prompt_engine import check_input_guardrails
 compat_bp = Blueprint("compat", __name__)
 
 SUPPORTED_MODELS = [
-    "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-3.5-flash-low",
+    "gemini-3-flash-agent",
+    "gemini-3.5-flash-extra-low",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-pro-low",
+    "gemini-3.1-pro-high",
+    "claude-sonnet-4-6",
+    "claude-opus-4-6-thinking",
+    "gpt-oss-120b-medium",
 ]
 
 # Map common OpenAI / Anthropic model names to Gemini equivalents
 MODEL_MAP = {
     # OpenAI — heavy → best model, mini/turbo → lite
-    "gpt-4o":            "gemini-3-flash-preview",
-    "gpt-4o-mini":       "gemini-3.1-flash-lite-preview",
-    "gpt-4":             "gemini-3-flash-preview",
-    "gpt-4-turbo":       "gemini-3-flash-preview",
-    "gpt-3.5-turbo":     "gemini-3.1-flash-lite-preview",
+    "gpt-4o":            "gemini-3.5-flash-low",
+    "gpt-4o-mini":       "gemini-3.5-flash-extra-low",
+    "gpt-4":             "gemini-3.1-pro-high",
+    "gpt-4-turbo":       "gemini-3.5-flash-low",
+    "gpt-3.5-turbo":     "gemini-3.1-flash-lite",
+    "gpt-oss-120b":      "gpt-oss-120b-medium",
     # Anthropic — opus → best, sonnet/haiku → lite
-    "claude-3-opus":         "gemini-3-flash-preview",
-    "claude-3-sonnet":       "gemini-3.1-flash-lite-preview",
-    "claude-3-haiku":        "gemini-3.1-flash-lite-preview",
-    "claude-3-5-sonnet":     "gemini-3-flash-preview",
-    "claude-opus-4":         "gemini-3-flash-preview",
-    "claude-sonnet-4":       "gemini-3.1-flash-lite-preview",
+    "claude-3-opus":         "claude-opus-4-6-thinking",
+    "claude-3-sonnet":       "claude-sonnet-4-6",
+    "claude-3-haiku":        "gemini-3.1-flash-lite",
+    "claude-3-5-sonnet":     "claude-sonnet-4-6",
+    "claude-opus-4":         "claude-opus-4-6-thinking",
+    "claude-opus-4.6":       "claude-opus-4-6-thinking",
+    "claude-sonnet-4":       "claude-sonnet-4-6",
+    "claude-sonnet-4.6":     "claude-sonnet-4-6",
 }
 
 
@@ -135,9 +143,9 @@ def _anthropic_messages_to_gemini(messages, system=None):
 
 
 def _resolve_model(requested):
-    """Map requested model name to a Gemini model name. Always falls back to gemini-3-flash-preview."""
+    """Map requested model name to an available Antigravity model."""
     if not requested:
-        return "gemini-3-flash-preview"
+        return "gemini-3.5-flash-low"
     lower = requested.lower()
     mapped = MODEL_MAP.get(lower)
     if mapped:
@@ -146,7 +154,7 @@ def _resolve_model(requested):
     if lower in [m.lower() for m in SUPPORTED_MODELS]:
         return lower
     # Unknown model → fallback
-    return "gemini-3-flash-preview"
+    return "gemini-3.5-flash-low"
 
 
 # ── OpenAI format ─────────────────────────────────────────────────────────────
@@ -172,7 +180,7 @@ def openai_chat_completions():
     data = request.get_json(force=True)
     messages = data.get("messages", [])
     do_stream = data.get("stream", False)
-    model = _resolve_model(data.get("model", "")) or "gemini-3-flash-preview"
+    model = _resolve_model(data.get("model", "")) or "gemini-3.5-flash-low"
 
     gemini_msgs, system_instruction = _openai_messages_to_gemini(messages)
 
@@ -199,7 +207,8 @@ def openai_chat_completions():
             }
             yield f"data: {json.dumps(opening)}\n\n"
 
-            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding):
+            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction,
+                                       grounding=grounding, requested_model=model):
                 if not raw.startswith("data: "):
                     continue
                 try:
@@ -229,7 +238,8 @@ def openai_chat_completions():
         )
 
     # Non-streaming
-    result = generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding)
+    result = generate(uid, gemini_msgs, system_instruction=system_instruction,
+                      grounding=grounding, requested_model=model)
     if "error" in result:
         return jsonify({"error": {"message": result["error"], "type": "api_error"}}), 502
 
@@ -259,7 +269,7 @@ def anthropic_messages():
     messages = data.get("messages", [])
     system = data.get("system", None)
     do_stream = data.get("stream", False)
-    model = _resolve_model(data.get("model", "")) or "gemini-3-flash-preview"
+    model = _resolve_model(data.get("model", "")) or "gemini-3.5-flash-low"
 
     gemini_msgs, system_instruction = _anthropic_messages_to_gemini(messages, system)
 
@@ -282,7 +292,8 @@ def anthropic_messages():
             yield f"event: message_start\ndata: {json.dumps({'type':'message_start','message':{'id':msg_id,'type':'message','role':'assistant','content':[],'model':model,'stop_reason':None,'usage':{'input_tokens':0,'output_tokens':0}}})}\n\n"
             yield f"event: content_block_start\ndata: {json.dumps({'type':'content_block_start','index':0,'content_block':{'type':'text','text':''}})}\n\n"
 
-            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding):
+            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction,
+                                       grounding=grounding, requested_model=model):
                 if not raw.startswith("data: "):
                     continue
                 try:
@@ -303,7 +314,8 @@ def anthropic_messages():
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    result = generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding)
+    result = generate(uid, gemini_msgs, system_instruction=system_instruction,
+                      grounding=grounding, requested_model=model)
     if "error" in result:
         return jsonify({"type": "error", "error": {"type": "api_error", "message": result["error"]}}), 502
 
@@ -351,6 +363,7 @@ def gemini_generate(model_action):
         model_name, action = model_action.rsplit(":", 1)
     else:
         model_name, action = model_action, "generateContent"
+    model = _resolve_model(model_name)
 
     do_stream = "stream" in action.lower()
 
@@ -384,7 +397,8 @@ def gemini_generate(model_action):
 
     if do_stream:
         def _gen():
-            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding):
+            for raw in stream_generate(uid, gemini_msgs, system_instruction=system_instruction,
+                                       grounding=grounding, requested_model=model):
                 if not raw.startswith("data: "):
                     continue
                 try:
@@ -409,7 +423,8 @@ def gemini_generate(model_action):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    result = generate(uid, gemini_msgs, system_instruction=system_instruction, grounding=grounding)
+    result = generate(uid, gemini_msgs, system_instruction=system_instruction,
+                      grounding=grounding, requested_model=model)
     if "error" in result:
         return jsonify({"error": {"message": result["error"]}}), 502
 

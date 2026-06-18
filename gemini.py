@@ -16,26 +16,37 @@ from auth import get_access_token
 log = logging.getLogger(__name__)
 
 ENDPOINT = "https://cloudcode-pa.googleapis.com"
+GENERATION_ENDPOINTS = [
+    "https://daily-cloudcode-pa.sandbox.googleapis.com",
+    ENDPOINT,
+]
 SERP_SEARCH_ENDPOINT = "https://serpapi.com/search.json"
 GENAI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
 
 # Gemini API keys for features not supported by cloudcode-pa (TTS, Veo video).
 # Keys are rotated round-robin on 429 / quota exhaustion.
 _GEMINI_API_KEYS = [
-    "YOUR_GEMINI_API_KEY_1",  # primary — chat + TTS + Veo
-    "YOUR_GEMINI_API_KEY_2",  # fallback
-    "YOUR_GEMINI_API_KEY_3",  # suspended — kept for rotation recovery
+    key for key in (
+        os.environ.get("GEMINI_API_KEY_1", ""),
+        os.environ.get("GEMINI_API_KEY_2", ""),
+        os.environ.get("GEMINI_API_KEY_3", ""),
+    )
+    if key
 ]
 _key_index = 0
 _key_lock = threading.Lock()
 
 
 def _get_api_key():
+    if not _GEMINI_API_KEYS:
+        return ""
     return _GEMINI_API_KEYS[_key_index % len(_GEMINI_API_KEYS)]
 
 
 def _rotate_api_key():
     global _key_index
+    if not _GEMINI_API_KEYS:
+        return
     with _key_lock:
         _key_index += 1
     log.warning("[GENAI KEY] Rotated to key index %d", _key_index % len(_GEMINI_API_KEYS))
@@ -87,13 +98,13 @@ CLI_VERSION = "0.36.0"
 # Defaults — used when no models.json exists yet
 _DEFAULT_MODEL_CONFIG = {
     "fallback": [
-        "gemini-3-flash-preview",
-        "gemini-3.1-flash-lite-preview",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash-low",
+        "gemini-3-flash-agent",
+        "gemini-3.5-flash-extra-low",
+        "gemini-3.1-flash-lite",
     ],
-    "thinking": "gemini-3-flash-preview",
-    "tts": "gemini-2.5-flash",
+    "thinking": "gemini-3.1-pro-high",
+    "tts": "gemini-3.1-flash-lite",
     # GenAI API (generativelanguage.googleapis.com) model lists — tried in order
     "tts_models": ["gemini-2.5-flash-preview-tts"],
     "veo_models": ["veo-3.0-generate-preview", "veo-2.0-generate-001"],
@@ -467,7 +478,8 @@ def _get_project_id(user_id):
 def generate(user_id, messages, files=None, system_instruction=None,
              thinking=False, thinking_budget=8192,
              grounding=False,
-             response_mime_type=None, response_schema=None):
+             response_mime_type=None, response_schema=None,
+             requested_model=None):
     from prompt_engine import check_output_guardrails
 
     headers = _headers(user_id)
@@ -506,7 +518,10 @@ def generate(user_id, messages, files=None, system_instruction=None,
         thinking_gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
 
     cfg = get_model_config()
-    if grounding:
+    if requested_model:
+        model_plan = [(requested_model, thinking)]
+        model_plan.extend((m, False) for m in cfg["fallback"] if m != requested_model)
+    elif grounding:
         # Use regular fallback models with Brave Search context injected above
         model_plan = [(m, False) for m in cfg["fallback"]]
     elif thinking:
@@ -520,7 +535,6 @@ def generate(user_id, messages, files=None, system_instruction=None,
     else:
         model_plan = [(m, False) for m in cfg["fallback"]]
 
-    url = f"{ENDPOINT}/v1internal:generateContent"
     _t0 = time.time()
     _models_tried = []
     log.info("[GENERATE] uid=%s thinking=%s grounding=%s models=%s",
@@ -538,10 +552,19 @@ def generate(user_id, messages, files=None, system_instruction=None,
         _models_tried.append(model)
 
         for attempt in range(RETRY_MAX_ATTEMPTS):
-            try:
-                resp = http_requests.post(url, headers=headers, json=body, timeout=180)
-            except Exception as e:
-                return {"error": f"Request failed: {e}"}
+            resp = None
+            for endpoint_idx, endpoint in enumerate(GENERATION_ENDPOINTS):
+                try:
+                    resp = http_requests.post(
+                        f"{endpoint}/v1internal:generateContent",
+                        headers=headers, json=body, timeout=180,
+                    )
+                except Exception as e:
+                    if endpoint_idx == len(GENERATION_ENDPOINTS) - 1:
+                        return {"error": f"Request failed: {e}"}
+                    continue
+                if resp.status_code != 404 or endpoint_idx == len(GENERATION_ENDPOINTS) - 1:
+                    break
 
             log.info("[GEMINI] model=%s attempt=%d status=%s", model, attempt + 1, resp.status_code)
 
@@ -615,7 +638,8 @@ def generate(user_id, messages, files=None, system_instruction=None,
 def stream_generate(user_id, messages, files=None, system_instruction=None,
                     thinking=False, thinking_budget=8192,
                     grounding=False,
-                    response_mime_type=None, response_schema=None):
+                    response_mime_type=None, response_schema=None,
+                    requested_model=None):
     from prompt_engine import check_output_guardrails
     headers = _headers(user_id)
     contents = _build_contents(messages, files)
@@ -650,7 +674,10 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
         thinking_gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
 
     cfg = get_model_config()
-    if grounding:
+    if requested_model:
+        model_plan = [(requested_model, thinking)]
+        model_plan.extend((m, False) for m in cfg["fallback"] if m != requested_model)
+    elif grounding:
         # Brave Search results already injected as context above; use regular models
         model_plan = [(m, False) for m in cfg["fallback"]]
     elif thinking:
@@ -663,7 +690,6 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
     else:
         model_plan = [(m, False) for m in cfg["fallback"]]
 
-    url = f"{ENDPOINT}/v1internal:streamGenerateContent?alt=sse"
     _t0 = time.time()
     _models_tried = []
     log.info("[STREAM] uid=%s thinking=%s grounding=%s models=%s",
@@ -683,11 +709,20 @@ def stream_generate(user_id, messages, files=None, system_instruction=None,
         # Streaming uses fewer retries (ported from gemini-cli: 4 max for mid-stream)
         max_attempts = 4
         for attempt in range(max_attempts):
-            try:
-                resp = http_requests.post(url, headers=headers, json=body, stream=True, timeout=120)
-            except Exception as e:
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                return
+            resp = None
+            for endpoint_idx, endpoint in enumerate(GENERATION_ENDPOINTS):
+                try:
+                    resp = http_requests.post(
+                        f"{endpoint}/v1internal:streamGenerateContent?alt=sse",
+                        headers=headers, json=body, stream=True, timeout=120,
+                    )
+                except Exception as e:
+                    if endpoint_idx == len(GENERATION_ENDPOINTS) - 1:
+                        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                        return
+                    continue
+                if resp.status_code != 404 or endpoint_idx == len(GENERATION_ENDPOINTS) - 1:
+                    break
 
             log.info("[GEMINI-STREAM] model=%s attempt=%d status=%s", model, attempt + 1, resp.status_code)
 

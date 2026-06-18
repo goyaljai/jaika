@@ -67,7 +67,7 @@ gemini-cli implements a sophisticated retry system:
    - Streaming uses fewer retries (4 max) with shorter initial delay (1s)
 
 3. **Model Fallback:**
-   - Default chain: `gemini-2.5-pro` → `gemini-2.5-flash`
+   - Default chain: `gemini-3.1-pro-high` → `gemini-3.5-flash-low`
    - Only falls back on **terminal** errors (daily quota, model not found)
    - On retryable errors, retries **same model** with backoff
    - Retry counter resets when falling back to a new model
@@ -102,7 +102,7 @@ MAX_RETRYABLE_DELAY = 300    # terminal if server says wait > 5min
 
 ### Fallback Chain
 ```python
-MODEL_FALLBACK = ["gemini-2.5-flash", "gemini-2.0-flash"]
+MODEL_FALLBACK = ["gemini-3.5-flash-low", "gemini-3.1-flash-lite"]
 ```
 - Flash first (highest RPM on free tier)
 - No pro model in fallback (saves quota)
@@ -110,7 +110,7 @@ MODEL_FALLBACK = ["gemini-2.5-flash", "gemini-2.0-flash"]
 
 ### Thinking Mode
 ```python
-MODEL_THINKING = "gemini-2.5-flash"
+MODEL_THINKING = "gemini-3.5-flash-low"
 ```
 
 ---
@@ -161,11 +161,11 @@ curl -s http://localhost:5244/api/me -H "X-User-Id: <uid>" | python3 -m json.too
 
 ### 4. Server logs for debugging
 ```
-[GEMINI] model=gemini-2.5-flash attempt=1 status=200     # Success
-[GEMINI] model=gemini-2.5-flash attempt=1 status=429     # Rate limited
-Model gemini-2.5-flash: retryable, waiting 33.6s          # Waiting for reset
-Model gemini-2.5-flash: terminal quota error: Daily...    # Quota exhausted
-Model gemini-2.5-flash not found, falling back             # 404, trying next model
+[GEMINI] model=gemini-3.5-flash-low attempt=1 status=200     # Success
+[GEMINI] model=gemini-3.5-flash-low attempt=1 status=429     # Rate limited
+Model gemini-3.5-flash-low: retryable, waiting 33.6s          # Waiting for reset
+Model gemini-3.5-flash-low: terminal quota error: Daily...    # Quota exhausted
+Model gemini-3.5-flash-low not found, falling back             # 404, trying next model
 ```
 
 ---

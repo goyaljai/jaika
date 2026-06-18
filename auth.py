@@ -3,6 +3,7 @@
 import fcntl
 import json
 import os
+import re
 import time
 import functools
 import secrets
@@ -35,16 +36,106 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
-# CLI's public credentials (open source, used by Gemini CLI)
-CLI_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
-CLI_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET"
+# Antigravity's installed-app OAuth client. The client ID is public and stable
+# for the desktop app; keep the matching client secret in runtime env only.
+CLI_CLIENT_ID = os.environ.get(
+    "ANTIGRAVITY_OAUTH_CLIENT_ID",
+    "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+)
+CLI_CLIENT_SECRET = os.environ.get("ANTIGRAVITY_OAUTH_CLIENT_SECRET", "").strip()
+CLI_SCOPES = (
+    "https://www.googleapis.com/auth/cloud-platform "
+    "https://www.googleapis.com/auth/userinfo.email "
+    "https://www.googleapis.com/auth/userinfo.profile "
+    "https://www.googleapis.com/auth/cclog "
+    "https://www.googleapis.com/auth/experimentsandconfigs "
+    "openid"
+)
 
-# Pending login sessions (login_token → waiting for script to send code)
-_pending_logins = {}
+_LOGIN_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
+_PENDING_LOGIN_TTL = 1800
+_MAX_PENDING_LOGINS = 100
 
 
 def _data_dir():
     return os.environ.get("JAIKA_DATA_DIR", "./data")
+
+
+def _pending_logins_dir():
+    path = os.path.join(_data_dir(), "pending_logins")
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    return path
+
+
+def _pending_login_path(login_token):
+    if not _LOGIN_TOKEN_RE.fullmatch(login_token or ""):
+        return None
+    return os.path.join(_pending_logins_dir(), f"{login_token}.json")
+
+
+def _read_pending_login(login_token):
+    path = _pending_login_path(login_token)
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _write_pending_login(login_token, entry):
+    path = _pending_login_path(login_token)
+    if not path:
+        raise ValueError("invalid login token")
+    _write_json_locked(path, entry)
+
+
+def _delete_pending_login(login_token):
+    path = _pending_login_path(login_token)
+    if not path:
+        return
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+def _cleanup_pending_logins():
+    now = time.time()
+    entries = []
+    for name in os.listdir(_pending_logins_dir()):
+        if not name.endswith(".json"):
+            continue
+        path = os.path.join(_pending_logins_dir(), name)
+        try:
+            with open(path) as f:
+                entry = json.load(f)
+            created = float(entry.get("created", 0))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            created = 0
+        if now - created > _PENDING_LOGIN_TTL:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+            continue
+        entries.append((created, path))
+    if len(entries) >= _MAX_PENDING_LOGINS:
+        entries.sort()
+        for _, path in entries[: len(entries) - (_MAX_PENDING_LOGINS // 2)]:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+
+
+def create_pending_login(login_token=None):
+    _cleanup_pending_logins()
+    token = login_token or secrets.token_urlsafe(32)
+    if not _read_pending_login(token):
+        _write_pending_login(token, {"status": "pending", "created": time.time()})
+    return token
 
 
 def _user_dir(user_id):
@@ -324,18 +415,7 @@ def login_required(f):
 @auth_bp.route("/start", methods=["POST"])
 def start_login():
     """Browser calls this to start a login flow. Returns a login_token to poll."""
-    # Clean up stale entries (>30 min old) to prevent memory leak
-    now = time.time()
-    stale = [k for k, v in _pending_logins.items() if now - v.get("created", 0) > 1800]
-    for k in stale:
-        del _pending_logins[k]
-    # Cap total pending logins to prevent DoS
-    if len(_pending_logins) > 100:
-        oldest = sorted(_pending_logins, key=lambda k: _pending_logins[k].get("created", 0))
-        for k in oldest[:50]:
-            del _pending_logins[k]
-    login_token = secrets.token_urlsafe(32)
-    _pending_logins[login_token] = {"status": "pending", "created": now}
+    login_token = create_pending_login()
     return jsonify({"login_token": login_token})
 
 
@@ -345,18 +425,27 @@ def exchange():
     data = request.get_json(force=True)
     code = data.get("code", "")
     redirect_uri = data.get("redirect_uri", "")
+    code_verifier = data.get("code_verifier", "")
     login_token = data.get("login_token", "")
 
-    if not code or not redirect_uri:
-        return jsonify({"error": "code and redirect_uri required"}), 400
-    if not login_token or login_token not in _pending_logins:
+    if not code or not redirect_uri or not code_verifier:
+        return jsonify({"error": "code, redirect_uri, and code_verifier required"}), 400
+    pending_login = _read_pending_login(login_token)
+    if not pending_login:
         return jsonify({"error": "Invalid or expired login token"}), 400
+    if time.time() - pending_login.get("created", 0) > _PENDING_LOGIN_TTL:
+        _delete_pending_login(login_token)
+        return jsonify({"error": "Invalid or expired login token"}), 400
+
+    if not CLI_CLIENT_SECRET:
+        return jsonify({"error": "ANTIGRAVITY_OAUTH_CLIENT_SECRET is not configured"}), 500
 
     # Exchange code for tokens using CLI credentials
     resp = http_requests.post(GOOGLE_TOKEN_URL, data={
         "client_id": CLI_CLIENT_ID,
         "client_secret": CLI_CLIENT_SECRET,
         "code": code,
+        "code_verifier": code_verifier,
         "redirect_uri": redirect_uri,
         "grant_type": "authorization_code",
     }, timeout=15)
@@ -395,14 +484,14 @@ def exchange():
         os.makedirs(os.path.join(_user_dir(user_id), sub), exist_ok=True)
 
     # Update pending login if token provided
-    if login_token and login_token in _pending_logins:
-        _pending_logins[login_token] = {
-            "status": "complete",
-            "user_id": user_id,
-            "email": user_info.get("email", ""),
-            "name": user_info.get("name", ""),
-            "picture": user_info.get("picture", ""),
-        }
+    _write_pending_login(login_token, {
+        "status": "complete",
+        "created": pending_login.get("created", time.time()),
+        "user_id": user_id,
+        "email": user_info.get("email", ""),
+        "name": user_info.get("name", ""),
+        "picture": user_info.get("picture", ""),
+    })
 
     return jsonify({"ok": True, "user_id": user_id, "email": user_info.get("email", "")})
 
@@ -411,19 +500,18 @@ def exchange():
 def poll():
     """Browser polls this to check if login script has completed."""
     login_token = request.args.get("token", "")
-    if not login_token or login_token not in _pending_logins:
+    entry = _read_pending_login(login_token)
+    if not entry:
         return jsonify({"status": "unknown"}), 404
 
-    entry = _pending_logins[login_token]
-
     # Clean up old entries (>30 min)
-    if time.time() - entry.get("created", 0) > 1800 and entry["status"] == "pending":
-        del _pending_logins[login_token]
+    if time.time() - entry.get("created", 0) > _PENDING_LOGIN_TTL and entry["status"] == "pending":
+        _delete_pending_login(login_token)
         return jsonify({"status": "expired"}), 410
 
     if entry["status"] == "complete":
         result = dict(entry)
-        del _pending_logins[login_token]
+        _delete_pending_login(login_token)
         return jsonify(result)
 
     return jsonify({"status": "pending"})
@@ -456,11 +544,24 @@ get_port() {{
 }}
 
 PORT=$(get_port)
-REDIRECT_URI="http://127.0.0.1:$PORT"
+REDIRECT_URI="http://localhost:$PORT"
 CLIENT_ID="{CLI_CLIENT_ID}"
-SCOPE="https://www.googleapis.com/auth/cloud-platform+openid+email+profile"
+SCOPE="{CLI_SCOPES.replace(' ', '+')}"
 
-AUTH_URL="https://accounts.google.com/o/oauth2/v2/auth?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&response_type=code&scope=$SCOPE&access_type=offline&prompt=consent"
+# Antigravity uses PKCE even though its installed-app client has a public
+# client_secret. Generate a fresh verifier/challenge for every login.
+PKCE=$(python3 << 'PKCEEOF'
+import base64, hashlib, secrets
+verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
+challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+print(verifier)
+print(challenge)
+PKCEEOF
+)
+CODE_VERIFIER=$(printf '%s\\n' "$PKCE" | sed -n '1p')
+CODE_CHALLENGE=$(printf '%s\\n' "$PKCE" | sed -n '2p')
+
+AUTH_URL="https://accounts.google.com/o/oauth2/v2/auth?client_id=$CLIENT_ID&redirect_uri=$REDIRECT_URI&response_type=code&scope=$SCOPE&access_type=offline&prompt=consent&include_granted_scopes=true&code_challenge=$CODE_CHALLENGE&code_challenge_method=S256"
 
 echo ""
 echo "  Opening Google sign-in in your browser..."
@@ -519,7 +620,7 @@ echo "  Sending credentials to Jaika server..."
 # Send code to server
 RESULT=$(curl -s -X POST "$SERVER/auth/exchange" \\
     -H "Content-Type: application/json" \\
-    -d "{{\\"code\\":\\"$RESPONSE\\",\\"redirect_uri\\":\\"$REDIRECT_URI\\",\\"login_token\\":\\"$LOGIN_TOKEN\\"}}")
+    -d "{{\\"code\\":\\"$RESPONSE\\",\\"redirect_uri\\":\\"$REDIRECT_URI\\",\\"code_verifier\\":\\"$CODE_VERIFIER\\",\\"login_token\\":\\"$LOGIN_TOKEN\\"}}")
 
 EMAIL=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('email',''))" 2>/dev/null || echo "")
 USER_ID=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user_id',''))" 2>/dev/null || echo "")
